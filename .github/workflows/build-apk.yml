@@ -24,6 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk/*-rc* /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          df -h /
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -90,7 +96,7 @@ jobs:
           cd android
           ./gradlew :app:assembleRelease --build-cache --no-daemon --max-workers=2 --console=plain --stacktrace \
             '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
-            -Pkotlin.compiler.execution.strategy=in-process
+            -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a
 
       - name: Collect APK
         run: |
