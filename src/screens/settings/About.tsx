@@ -18,13 +18,7 @@ import {isTV} from '../../lib/tv';
 import {useM3Colors} from '../../theme/M3PaletteContext';
 import {socialLinks} from '../../lib/constants';
 import {
-  APP_BUILD,
   APP_VERSION,
-  GITHUB_OWNER,
-  GITHUB_REPO,
-  GITHUB_URL,
-  ISSUES_URL,
-  RELEASES_URL,
   UpdateInfo,
   checkForUpdate,
   downloadAndInstall,
@@ -104,7 +98,7 @@ const About = ({navigation}: any) => {
       : phase === 'downloading'
         ? `Downloading… ${Math.round(progress * 100)}%`
         : info?.available
-          ? `Update to build ${info.latestBuild}`
+          ? 'Update available'
           : 'Check for updates';
 
   const updateDescription = error
@@ -113,7 +107,7 @@ const About = ({navigation}: any) => {
       ? `A new version is ready${formatMb(info.size)}`
       : info
         ? 'You are on the latest version'
-        : 'Compare this build with the latest release';
+        : 'Check if a newer version is available';
 
   return (
     <TVFocusGuide autoFocus trapFocusRight style={{flex: 1}}>
@@ -155,7 +149,7 @@ const About = ({navigation}: any) => {
             CINE<Text style={{color: '#E50914'}}>HUB</Text>
           </Text>
           <Text style={{color: colors.onSurfaceVariant, marginTop: 6}}>
-            Version {APP_VERSION} · Build {APP_BUILD}
+            Version {APP_VERSION}
           </Text>
         </View>
 
@@ -192,24 +186,6 @@ const About = ({navigation}: any) => {
         </SettingsSection>
 
         <SettingsSection title="Project">
-          <SettingsRow
-            title={`${GITHUB_OWNER}/${GITHUB_REPO}`}
-            description="Source code and releases on GitHub"
-            icon="github"
-            onPress={() => open(GITHUB_URL)}
-          />
-          <SettingsRow
-            title="Release notes"
-            description="See what changed in every build"
-            icon="text-box-outline"
-            onPress={() => open(RELEASES_URL)}
-          />
-          <SettingsRow
-            title="Report a problem"
-            description="Open an issue on GitHub"
-            icon="bug-outline"
-            onPress={() => open(ISSUES_URL)}
-          />
           <SettingsRow
             title="Support group"
             description="Get help on Telegram"

@@ -158,7 +158,7 @@ export const checkForUpdateOnStartup = async (): Promise<void> => {
     }
     showAppDialog({
       title: 'Update available',
-      message: `CineHub build ${info.latestBuild} is ready (you have build ${info.currentBuild}).${
+      message: `A new version of CineHub is ready.${
         info.notes ? `\n\n${info.notes.slice(0, 400)}` : ''
       }`,
       variant: 'info',

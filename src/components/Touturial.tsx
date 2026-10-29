@@ -9,14 +9,11 @@ import {
   useNavigation,
 } from '@react-navigation/native';
 import {MaterialCommunityIcons} from '@expo/vector-icons';
-import {settingsStorage} from '../lib/storage';
-import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import {RootStackParamList} from '../App';
 import {useM3Colors} from '../theme/M3PaletteContext';
 import * as DocumentPicker from 'expo-document-picker';
 import {TVFocusable} from './tv';
 import {isTV} from '../lib/tv/constants';
-import {syncServers} from '../lib/services/serverSync';
 
 const Tutorial = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -75,21 +72,6 @@ const Tutorial = () => {
     }, []),
   );
 
-  const [refreshing, setRefreshing] = useState(false);
-  const handleGoToExtensions = async () => {
-    if (settingsStorage.isHapticFeedbackEnabled()) {
-      ReactNativeHapticFeedback.trigger('effectClick', {
-        enableVibrateFallback: true,
-        ignoreAndroidSystemSettings: false,
-      });
-    }
-    setRefreshing(true);
-    try {
-      await syncServers();
-    } catch {}
-    setRefreshing(false);
-  };
-
   const handlePlayLocalFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: 'video/*',
@@ -146,7 +128,7 @@ const Tutorial = () => {
             textAlign: 'center',
             marginBottom: 16,
           }}>
-          No Servers Yet
+          Loading content
         </Text>
         <Text
           style={{
@@ -156,43 +138,16 @@ const Tutorial = () => {
             marginBottom: 24,
             lineHeight: 24,
           }}>
-          Servers are added by the CineHub admin. Check your internet and tap
-          refresh, or play a local file.
+          Movies and shows load automatically. Check your internet connection, or play a local file.
         </Text>
         <TVFocusable
           ref={installButtonRef}
-          onPress={handleGoToExtensions}
-          hasTVPreferredFocus={true}
-          accessibilityLabel="Refresh servers"
-          accessibilityRole="button"
-          borderRadius={12}
-          focusBorderColor={colors.onPrimary}
-          style={{width: '100%'}}>
-          <View
-            className="px-6 py-3 rounded-xl w-full flex-row items-center justify-center"
-            style={{backgroundColor: colors.primary}}>
-            <MaterialCommunityIcons
-              name="refresh"
-              size={20}
-              color={colors.onPrimary}
-            />
-            <Text
-              style={{
-                color: colors.onPrimary,
-                fontSize: 16,
-                fontWeight: '600',
-                marginLeft: 8,
-              }}>
-              {refreshing ? 'Refreshing…' : 'Refresh servers'}
-            </Text>
-          </View>
-        </TVFocusable>
-        <TVFocusable
           onPress={handlePlayLocalFile}
+          hasTVPreferredFocus={true}
           accessibilityLabel="Play local file"
           accessibilityRole="button"
           borderRadius={12}
-          style={{width: '100%', marginTop: 12}}>
+          style={{width: '100%'}}>
           <View
             className="px-6 py-3 rounded-xl w-full flex-row items-center justify-center"
             style={{

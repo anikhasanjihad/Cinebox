@@ -115,7 +115,7 @@ const Home = ({}: Props) => {
   });
   const tmdbHome = useTmdbHomeData({
     apiKey: tmdbApiKey,
-    enabled: hasProvider && tmdbMode,
+    enabled: tmdbMode,
   });
   const {
     data: homeData = [],
@@ -293,9 +293,10 @@ const Home = ({}: Props) => {
 
   // Early return for no providers
   if (
-    !installedProviders ||
-    installedProviders.length === 0 ||
-    !provider?.value
+    !tmdbMode &&
+    (!installedProviders ||
+      installedProviders.length === 0 ||
+      !provider?.value)
   ) {
     return <ScrollView contentContainerStyle={{flexGrow: 1, paddingTop: isTV ? 12 : 32}}>
       {showContinueWatching && <ContinueWatching localOnly />}

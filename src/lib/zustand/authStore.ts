@@ -24,6 +24,11 @@ interface AuthState {
     displayName: string,
   ) => Promise<SignUpResult>;
   resetPassword: (email: string) => Promise<void>;
+  resetPasswordWithCode: (
+    email: string,
+    code: string,
+    newPassword: string,
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (
@@ -32,6 +37,9 @@ interface AuthState {
 }
 
 let initialized = false;
+// True while a password reset is verifying its code: the temporary recovery
+// session must not sign the user into the app.
+let resettingPassword = false;
 
 const friendlyError = (error: unknown): Error => {
   const raw = error instanceof Error ? error.message : String(error ?? '');
@@ -90,6 +98,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     supabase.auth.onAuthStateChange((_event, session) => {
+      if (resettingPassword) {
+        return;
+      }
       const hadUser = get().user?.id;
       apply(session);
       if (session && session.user.id !== hadUser) {
@@ -136,6 +147,35 @@ const useAuthStore = create<AuthState>((set, get) => ({
     const {error} = await supabase.auth.resetPasswordForEmail(email.trim());
     if (error) {
       throw friendlyError(error);
+    }
+  },
+
+  resetPasswordWithCode: async (email, code, newPassword) => {
+    resettingPassword = true;
+    try {
+      const {error: verifyError} = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: code.trim(),
+        type: 'recovery',
+      });
+      if (verifyError) {
+        const m = verifyError.message.toLowerCase();
+        if (m.includes('expired') || m.includes('invalid')) {
+          throw new Error('That code is wrong or has expired. Request a new one.');
+        }
+        throw friendlyError(verifyError);
+      }
+      const {error: updateError} = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateError) {
+        throw friendlyError(updateError);
+      }
+      // Back to the sign-in screen: the user logs in with the new password.
+      await supabase.auth.signOut({scope: 'local'}).catch(() => {});
+      set({session: null, user: null, profile: null, isAdmin: false, status: 'signedOut'});
+    } finally {
+      resettingPassword = false;
     }
   },
 
