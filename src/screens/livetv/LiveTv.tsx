@@ -7,17 +7,14 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  ScrollView,
   TextInput,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {RootStackParamList} from '../../App';
 import {TVFocusable, TVFocusGuide} from '../../components/tv';
 import AppText from '../../components/ui/Text';
 import {
-  groupCategories,
   liveChannelPlayerParams,
   loadLiveChannels,
   readCachedChannels,
@@ -29,7 +26,6 @@ import {isTV} from '../../lib/tv';
 import {useTVFocusBorderColor} from '../../lib/tv/useTVFocusBorderColor';
 import {useM3Colors} from '../../theme/M3PaletteContext';
 
-const ALL = '__all__';
 const REFRESH_AFTER_MS = 10 * 60 * 1000;
 
 interface CardProps {
@@ -118,11 +114,75 @@ const ChannelCard = React.memo(
   },
 );
 
+interface Section {
+  name: string;
+  channels: LiveChannel[];
+}
+
+const SectionRow = React.memo(
+  ({
+    section,
+    cardWidth,
+    firstRow,
+    onPress,
+  }: {
+    section: Section;
+    cardWidth: number;
+    firstRow: boolean;
+    onPress: (channel: LiveChannel) => void;
+  }) => {
+    const colors = useM3Colors();
+    return (
+      <View style={{marginBottom: 18}}>
+        <View
+          style={{
+            alignItems: 'baseline',
+            flexDirection: 'row',
+            gap: 8,
+            marginBottom: 10,
+            paddingLeft: isTV ? 12 : 6,
+          }}>
+          <AppText
+            role="titleLargeEmphasized"
+            numberOfLines={1}
+            style={{color: colors.onBackground, flexShrink: 1}}>
+            {section.name}
+          </AppText>
+          <AppText role="labelMedium" style={{color: colors.onSurfaceVariant}}>
+            {section.channels.length}
+          </AppText>
+        </View>
+        <FlatList
+          horizontal
+          data={section.channels}
+          keyExtractor={item => item.id}
+          showsHorizontalScrollIndicator={false}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={5}
+          contentContainerStyle={{
+            gap: 10,
+            paddingLeft: isTV ? 12 : 6,
+            paddingRight: isTV ? 48 : 6,
+          }}
+          renderItem={({item, index}) => (
+            <ChannelCard
+              channel={item}
+              width={cardWidth}
+              preferredFocus={isTV && firstRow && index === 0}
+              onPress={onPress}
+            />
+          )}
+        />
+      </View>
+    );
+  },
+);
+
 const LiveTv = () => {
   const insets = useSafeAreaInsets();
   const colors = useM3Colors();
   const focusBorderColor = useTVFocusBorderColor();
-  const {width: screenWidth} = useWindowDimensions();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -132,7 +192,6 @@ const LiveTv = () => {
   const [failed, setFailed] = useState(0);
   const [noSources, setNoSources] = useState(false);
   const [error, setError] = useState('');
-  const [category, setCategory] = useState(ALL);
   const [query, setQuery] = useState('');
   const lastLoad = useRef(0);
 
@@ -151,12 +210,10 @@ const LiveTv = () => {
       } else {
         const result = await loadLiveChannels(sources);
         setFailed(result.failed);
-        if (result.channels.length > 0 || result.failed === sources.length) {
-          // Keep the previous list if every link is down right now.
-          if (result.channels.length > 0) {
-            setChannels(result.channels);
-            writeCachedChannels(result.channels);
-          }
+        // Keep the previous list if every link is down right now.
+        if (result.channels.length > 0) {
+          setChannels(result.channels);
+          writeCachedChannels(result.channels);
         }
       }
       lastLoad.current = Date.now();
@@ -181,23 +238,23 @@ const LiveTv = () => {
     }, [load]),
   );
 
-  const categories = useMemo(() => groupCategories(channels), [channels]);
-
-  // A category that disappeared after a refresh falls back to All.
-  useEffect(() => {
-    if (category !== ALL && !categories.some(c => c.name === category)) {
-      setCategory(ALL);
-    }
-  }, [categories, category]);
-
-  const visible = useMemo(() => {
+  // One slider per category, in the order they appear in the lists.
+  const sections = useMemo<Section[]>(() => {
     const q = query.trim().toLowerCase();
-    return channels.filter(
-      c =>
-        (category === ALL || c.category === category) &&
-        (!q || c.name.toLowerCase().includes(q)),
-    );
-  }, [channels, category, query]);
+    const map = new Map<string, LiveChannel[]>();
+    channels.forEach(c => {
+      if (q && !c.name.toLowerCase().includes(q)) {
+        return;
+      }
+      const list = map.get(c.category);
+      if (list) {
+        list.push(c);
+      } else {
+        map.set(c.category, [c]);
+      }
+    });
+    return [...map.entries()].map(([name, list]) => ({name, channels: list}));
+  }, [channels, query]);
 
   const play = useCallback(
     (channel: LiveChannel) => {
@@ -206,16 +263,7 @@ const LiveTv = () => {
     [navigation],
   );
 
-  const padding = isTV ? 12 : 12;
-  const gap = 10;
-  const available = screenWidth - (isTV ? 96 : 0) - padding * 2;
-  const target = isTV ? 190 : 150;
-  const numColumns = Math.max(2, Math.floor((available + gap) / (target + gap)));
-  const cardWidth = (available - gap * (numColumns - 1)) / numColumns;
-
-  const chips = [{name: ALL, label: 'All', count: channels.length}].concat(
-    categories.map(c => ({name: c.name, label: c.name, count: c.count})),
-  );
+  const cardWidth = isTV ? 190 : 140;
 
   const renderEmpty = () => {
     if (loading) {
@@ -229,7 +277,7 @@ const LiveTv = () => {
       ? 'Could not load channels'
       : noSources
         ? 'No channels yet'
-        : query || category !== ALL
+        : query
           ? 'No matching channels'
           : failed > 0
             ? 'Channels are unavailable'
@@ -238,8 +286,8 @@ const LiveTv = () => {
       ? error
       : noSources
         ? 'Live channels are added by the CineHub admin.'
-        : query || category !== ALL
-          ? 'Try another name or category.'
+        : query
+          ? 'Try another channel name.'
           : 'The channel list could not be reached. Check your internet connection and try again.';
     return (
       <View style={{alignItems: 'center', paddingHorizontal: 32, paddingTop: 80}}>
@@ -258,26 +306,28 @@ const LiveTv = () => {
           style={{color: colors.onSurfaceVariant, marginTop: 8, textAlign: 'center'}}>
           {message}
         </AppText>
-        <TVFocusable
-          accessibilityRole="button"
-          onPress={() => {
-            setLoading(true);
-            load(false);
-          }}
-          hasTVPreferredFocus={isTV}
-          borderRadius={22}
-          focusBorderColor={focusBorderColor}
-          style={{
-            backgroundColor: colors.primary,
-            borderRadius: 22,
-            marginTop: 20,
-            paddingHorizontal: 26,
-            paddingVertical: 11,
-          }}>
-          <AppText role="labelLargeEmphasized" style={{color: colors.onPrimary}}>
-            Retry
-          </AppText>
-        </TVFocusable>
+        {!query && (
+          <TVFocusable
+            accessibilityRole="button"
+            onPress={() => {
+              setLoading(true);
+              load(false);
+            }}
+            hasTVPreferredFocus={isTV}
+            borderRadius={22}
+            focusBorderColor={focusBorderColor}
+            style={{
+              backgroundColor: colors.primary,
+              borderRadius: 22,
+              marginTop: 20,
+              paddingHorizontal: 26,
+              paddingVertical: 11,
+            }}>
+            <AppText role="labelLargeEmphasized" style={{color: colors.onPrimary}}>
+              Retry
+            </AppText>
+          </TVFocusable>
+        )}
       </View>
     );
   };
@@ -293,7 +343,7 @@ const LiveTv = () => {
         paddingTop: isTV ? 0 : insets.top,
       }}>
       <StatusBar />
-      <View style={{flex: 1, paddingHorizontal: padding}}>
+      <View style={{flex: 1, paddingHorizontal: 6}}>
         <View
           style={{
             alignItems: 'center',
@@ -332,123 +382,60 @@ const LiveTv = () => {
         </View>
 
         {channels.length > 0 && (
-          <>
-            <View
-              style={{
-                alignItems: 'center',
-                backgroundColor: colors.surfaceContainerHigh,
-                borderRadius: 26,
-                flexDirection: 'row',
-                height: isTV ? 52 : 48,
-                marginBottom: 12,
-                marginHorizontal: isTV ? 12 : 6,
-                paddingHorizontal: 14,
-              }}>
-              <MaterialCommunityIcons name="magnify" size={22} color={colors.onSurfaceVariant} />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search channels"
-                placeholderTextColor={colors.onSurfaceVariant}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="search"
-                cursorColor={colors.primary}
-                selectionColor={colors.primary}
-                style={{color: colors.onSurface, flex: 1, fontSize: 16, marginLeft: 10, paddingVertical: 0}}
-              />
-              {!!query && (
-                <TVFocusable
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                  onPress={() => setQuery('')}
-                  borderRadius={16}
-                  style={{padding: 4}}>
-                  <MaterialCommunityIcons name="close-circle" size={20} color={colors.onSurfaceVariant} />
-                </TVFocusable>
-              )}
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{flexGrow: 0, marginBottom: 14}}
-              contentContainerStyle={{
-                gap: 8,
-                paddingLeft: isTV ? 12 : 6,
-                paddingRight: isTV ? 48 : 6,
-                paddingVertical: 4,
-              }}>
-              {chips.map(chip => {
-                const selected = chip.name === category;
-                return (
-                  <TVFocusable
-                    key={chip.name}
-                    accessibilityRole="tab"
-                    accessibilityState={{selected}}
-                    accessibilityLabel={`${chip.label}, ${chip.count} channels`}
-                    onPress={() => setCategory(chip.name)}
-                    borderRadius={18}
-                    focusScale={1.06}
-                    focusBorderColor={focusBorderColor}
-                    style={{
-                      alignItems: 'center',
-                      backgroundColor: selected
-                        ? colors.secondaryContainer
-                        : colors.surfaceContainerHigh,
-                      borderColor: selected ? colors.secondary : colors.outlineVariant,
-                      borderRadius: 18,
-                      borderWidth: 1,
-                      flexDirection: 'row',
-                      gap: 7,
-                      height: isTV ? 44 : 38,
-                      paddingHorizontal: 14,
-                    }}>
-                    <AppText
-                      role="labelLargeEmphasized"
-                      numberOfLines={1}
-                      style={{
-                        color: selected ? colors.onSecondaryContainer : colors.onSurface,
-                        maxWidth: 160,
-                      }}>
-                      {chip.label}
-                    </AppText>
-                    <AppText
-                      role="labelMedium"
-                      style={{
-                        color: selected ? colors.onSecondaryContainer : colors.onSurfaceVariant,
-                        opacity: 0.8,
-                      }}>
-                      {chip.count}
-                    </AppText>
-                  </TVFocusable>
-                );
-              })}
-            </ScrollView>
-          </>
+          <View
+            style={{
+              alignItems: 'center',
+              backgroundColor: colors.surfaceContainerHigh,
+              borderRadius: 26,
+              flexDirection: 'row',
+              height: isTV ? 52 : 48,
+              marginBottom: 16,
+              marginHorizontal: isTV ? 12 : 6,
+              paddingHorizontal: 14,
+            }}>
+            <MaterialCommunityIcons name="magnify" size={22} color={colors.onSurfaceVariant} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search channels"
+              placeholderTextColor={colors.onSurfaceVariant}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              cursorColor={colors.primary}
+              selectionColor={colors.primary}
+              style={{color: colors.onSurface, flex: 1, fontSize: 16, marginLeft: 10, paddingVertical: 0}}
+            />
+            {!!query && (
+              <TVFocusable
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                onPress={() => setQuery('')}
+                borderRadius={16}
+                style={{padding: 4}}>
+                <MaterialCommunityIcons name="close-circle" size={20} color={colors.onSurfaceVariant} />
+              </TVFocusable>
+            )}
+          </View>
         )}
 
         <FlatList
-          key={numColumns}
-          data={visible}
-          keyExtractor={item => item.id}
-          numColumns={numColumns}
-          columnWrapperStyle={{gap, marginBottom: gap}}
-          contentContainerStyle={{paddingBottom: 24, paddingHorizontal: isTV ? 0 : 0}}
+          data={sections}
+          keyExtractor={item => item.name}
           showsVerticalScrollIndicator={false}
-          initialNumToRender={numColumns * 4}
-          maxToRenderPerBatch={numColumns * 3}
-          windowSize={7}
-          removeClippedSubviews
+          contentContainerStyle={{paddingBottom: 24}}
+          initialNumToRender={3}
+          maxToRenderPerBatch={3}
+          windowSize={5}
           keyboardShouldPersistTaps="handled"
           onRefresh={isTV ? undefined : () => load(true)}
           refreshing={refreshing}
           ListEmptyComponent={renderEmpty}
           renderItem={({item, index}) => (
-            <ChannelCard
-              channel={item}
-              width={cardWidth}
-              preferredFocus={isTV && index === 0}
+            <SectionRow
+              section={item}
+              cardWidth={cardWidth}
+              firstRow={index === 0}
               onPress={play}
             />
           )}

@@ -192,8 +192,8 @@ export type TabStackParamList = {
   HomeStack: undefined;
   SearchStack: undefined;
   WatchListStack: undefined;
-  LiveTv: undefined;
   DownloadsStack: undefined;
+  LiveTv: undefined;
   SettingsStack: undefined;
 };
 const Tab = createBottomTabNavigator<TabStackParamList>();
@@ -509,11 +509,6 @@ function TabStack() {
         component={WatchListStackScreen}
         options={watchListTabOptions}
       />
-      <Tab.Screen
-        name="LiveTv"
-        component={LiveTv}
-        options={liveTvTabOptions}
-      />
       {!hideDownloadsTab && (
         <Tab.Screen
           name="DownloadsStack"
@@ -521,6 +516,11 @@ function TabStack() {
           options={downloadsTabOptions}
         />
       )}
+      <Tab.Screen
+        name="LiveTv"
+        component={LiveTv}
+        options={liveTvTabOptions}
+      />
       <Tab.Screen
         name="SettingsStack"
         component={SettingsStackScreen}

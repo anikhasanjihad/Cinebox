@@ -198,7 +198,10 @@ const StreamingTabButton = ({
         <AppText
           role={isFocused ? 'labelMediumEmphasized' : 'labelMedium'}
           numberOfLines={1}
+          adjustsFontSizeToFit={!isNavigationRail}
+          minimumFontScale={0.75}
           style={{
+            width: isNavigationRail ? undefined : '100%',
             color: isFocused ? colors.onSurface : colors.onSurfaceVariant,
             marginTop: 4,
             textAlign: 'center',
