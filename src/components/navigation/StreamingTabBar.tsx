@@ -20,6 +20,7 @@ const TAB_ICONS: Record<string, AnimatedTabIconName> = {
   HomeStack: 'home',
   SearchStack: 'search',
   WatchListStack: 'watchlist',
+  LiveTv: 'livetv',
   DownloadsStack: 'download',
   SettingsStack: 'settings',
 };

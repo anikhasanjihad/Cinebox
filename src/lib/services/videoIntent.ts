@@ -76,7 +76,11 @@ export const videoIntentPlayerParams = (
 
 export const externalVideoStream = (params: {
   directUrl?: string;
-  externalVideo?: {mimeType: string};
+  externalVideo?: {
+    mimeType: string;
+    headers?: Record<string, string>;
+    live?: boolean;
+  };
 }): Stream | undefined => {
   if (!params.externalVideo || !params.directUrl) return undefined;
   const mime = params.externalVideo.mimeType.toLowerCase();
@@ -86,5 +90,10 @@ export const externalVideoStream = (params: {
       : mime.includes('dash') || /\.mpd(?:[?#]|$)/i.test(params.directUrl)
         ? 'mpd'
         : '';
-  return {server: 'Opened video', link: params.directUrl, type};
+  return {
+    server: params.externalVideo.live ? 'Live' : 'Opened video',
+    link: params.directUrl,
+    type,
+    ...(params.externalVideo.headers ? {headers: params.externalVideo.headers} : {}),
+  };
 };

@@ -34,9 +34,12 @@ import {
   ProviderExtension,
 } from '../../lib/storage/extensionStorage';
 import {
+  fetchLiveTvSources,
   fetchTmdbApiKeyForAdmin,
+  saveLiveTvSources,
   saveTmdbApiKey,
 } from '../../lib/services/remoteConfig';
+import type {LiveSource} from '../../lib/liveTv/liveTv';
 import {validateTmdbKey} from '../../lib/tmdbHome';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'AdminPanel'>;
@@ -417,6 +420,11 @@ const AdminPanel = ({navigation}: Props) => {
   const [tmdbShow, setTmdbShow] = useState(false);
   const [tmdbBusy, setTmdbBusy] = useState(false);
 
+  const [liveOpen, setLiveOpen] = useState(false);
+  const [liveSaved, setLiveSaved] = useState<LiveSource[]>([]);
+  const [liveDraft, setLiveDraft] = useState<LiveSource[]>([]);
+  const [liveBusy, setLiveBusy] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       if (!isTV) {
@@ -427,13 +435,15 @@ const AdminPanel = ({navigation}: Props) => {
           setDraft(null);
         } else if (tmdbOpen) {
           setTmdbOpen(false);
+        } else if (liveOpen) {
+          setLiveOpen(false);
         } else {
           navigation.goBack();
         }
         return true;
       });
       return () => sub.remove();
-    }, [navigation, draft, tmdbOpen]),
+    }, [navigation, draft, tmdbOpen, liveOpen]),
   );
 
   const load = useCallback(async () => {
@@ -446,6 +456,9 @@ const AdminPanel = ({navigation}: Props) => {
       setUserCount(count ?? null);
       fetchTmdbApiKeyForAdmin()
         .then(setTmdbSaved)
+        .catch(() => {});
+      fetchLiveTvSources()
+        .then(setLiveSaved)
         .catch(() => {});
     } catch (e) {
       ToastAndroid.show(
@@ -709,6 +722,57 @@ const AdminPanel = ({navigation}: Props) => {
     }
   };
 
+  /* ── Live TV links ── */
+
+  const openLive = () => {
+    setLiveDraft(
+      liveSaved.length
+        ? liveSaved.map(x => ({...x}))
+        : [{id: `s${Date.now()}`, label: '', url: ''}],
+    );
+    setLiveOpen(true);
+  };
+
+  const updateLive = (id: string, patch: Partial<LiveSource>) =>
+    setLiveDraft(list => list.map(x => (x.id === id ? {...x, ...patch} : x)));
+
+  const saveLive = async () => {
+    const bad = liveDraft.find(
+      x => x.url.trim() && !/^https?:\/\//i.test(x.url.trim()),
+    );
+    if (bad) {
+      ToastAndroid.show('Every link must start with http:// or https://', ToastAndroid.LONG);
+      return;
+    }
+    const clean = liveDraft
+      .map(x => ({...x, label: x.label.trim(), url: x.url.trim()}))
+      .filter(x => x.url);
+    setLiveBusy(true);
+    try {
+      await saveLiveTvSources(clean);
+      setLiveSaved(clean);
+      setLiveOpen(false);
+      ToastAndroid.show(
+        clean.length ? 'Live TV saved for all users' : 'Live TV links removed',
+        ToastAndroid.SHORT,
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Could not save';
+      ToastAndroid.show(
+        message.includes('app_settings')
+          ? 'Run supabase/migration-v2.sql in Supabase first'
+          : message,
+        ToastAndroid.LONG,
+      );
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
+  const liveValue = liveSaved.length
+    ? `${liveSaved.length} ${liveSaved.length === 1 ? 'link' : 'links'}`
+    : 'Not set';
+
   const maskedKey = tmdbSaved ? `••••${tmdbSaved.slice(-4)}` : 'Not set';
 
   const draftIndex = draft?.id ? servers.findIndex(s => s.id === draft.id) : -1;
@@ -857,6 +921,19 @@ const AdminPanel = ({navigation}: Props) => {
             value={maskedKey}
             chevron
             onPress={openTmdb}
+          />
+        </Group>
+
+        <Group
+          header="Live TV"
+          inset={58}
+          footer="Add links to a channel list (JSON or M3U). Channels are grouped by the category inside each list; a channel with no category goes under the link’s name. Users see the changes when they open or refresh Live TV.">
+          <Row
+            leading={<Badge icon="live-tv" color={IOS.red} />}
+            title="Live TV Links"
+            value={liveValue}
+            chevron
+            onPress={openLive}
           />
         </Group>
 
@@ -1054,6 +1131,64 @@ const AdminPanel = ({navigation}: Props) => {
                   color={IOS.secondary}
                 />
               </TVFocusable>
+            }
+          />
+        </Group>
+      </Sheet>
+
+      {/* ───── Live TV sheet ───── */}
+      <Sheet
+        visible={liveOpen}
+        title="Live TV Links"
+        busy={liveBusy}
+        onCancel={() => setLiveOpen(false)}
+        onDone={saveLive}>
+        {liveDraft.map((src, i) => (
+          <Group
+            key={src.id}
+            header={`Link ${i + 1}`}
+            footer={
+              i === liveDraft.length - 1
+                ? 'Name is optional. It becomes the category for channels that have none. Leave a link empty and save to remove it.'
+                : undefined
+            }>
+            <InputRow
+              value={src.label}
+              placeholder="Name (e.g. Sports)"
+              onChangeText={v => updateLive(src.id, {label: v})}
+            />
+            <InputRow
+              value={src.url}
+              placeholder="https://…/channels.json"
+              onChangeText={v => updateLive(src.id, {url: v})}
+              trailing={
+                <TVFocusable
+                  accessibilityLabel="Remove link"
+                  onPress={() =>
+                    setLiveDraft(list =>
+                      list.length > 1
+                        ? list.filter(x => x.id !== src.id)
+                        : [{...src, label: '', url: ''}],
+                    )
+                  }
+                  borderRadius={16}
+                  style={{padding: 6}}>
+                  <MaterialIcons name="delete-outline" size={22} color={IOS.red} />
+                </TVFocusable>
+              }
+            />
+          </Group>
+        ))}
+        <Group>
+          <Row
+            leading={<Badge icon="add" color={IOS.green} />}
+            title="Add Link"
+            tint={IOS.tint}
+            onPress={() =>
+              setLiveDraft(list => [
+                ...list,
+                {id: `s${Date.now()}`, label: '', url: ''},
+              ])
             }
           />
         </Group>

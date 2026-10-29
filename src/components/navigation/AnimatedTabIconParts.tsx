@@ -170,6 +170,25 @@ export const FilledTabIcon = ({
           d="M8.5 2.75A3.25 3.25 0 0 0 5.25 6v14.25a1.25 1.25 0 0 0 1.828 1.108L12 18.79l4.922 2.568a1.25 1.25 0 0 0 1.828-1.108V6a3.25 3.25 0 0 0-3.25-3.25h-7Z"
         />
       );
+    case 'livetv':
+      return (
+        <>
+          <Path
+            fill={color}
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M6 7h12a2.75 2.75 0 0 1 2.75 2.75v7.5A2.75 2.75 0 0 1 18 20H6a2.75 2.75 0 0 1-2.75-2.75v-7.5A2.75 2.75 0 0 1 6 7ZM10.25 11.2v4.6l3.8-2.3-3.8-2.3Z"
+          />
+          <Path
+            fill="none"
+            stroke={color}
+            strokeWidth={1.9}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 3.25 12 6.75l4-3.5"
+          />
+        </>
+      );
     case 'download':
       return (
         <>
@@ -294,6 +313,29 @@ export const OutlineTabIcon = ({
               d="m12 17.5 5.75 3"
             />
           </RotatingPart>
+        </>
+      );
+    case 'livetv':
+      return (
+        <>
+          <AnimatedStrokePath
+            progress={progress}
+            color={color}
+            end={0.7}
+            d="M6 7h12a2.75 2.75 0 0 1 2.75 2.75v7.5A2.75 2.75 0 0 1 18 20H6a2.75 2.75 0 0 1-2.75-2.75v-7.5A2.75 2.75 0 0 1 6 7Z"
+          />
+          <AnimatedStrokePath
+            progress={progress}
+            color={color}
+            start={0.55}
+            d="M8 3.25 12 6.75l4-3.5"
+          />
+          <AnimatedStrokePath
+            progress={progress}
+            color={color}
+            start={0.4}
+            d="M10.25 11.2v4.6l3.8-2.3-3.8-2.3Z"
+          />
         </>
       );
     case 'download':

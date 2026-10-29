@@ -15,6 +15,7 @@ export type AnimatedTabIconName =
   | 'home'
   | 'search'
   | 'watchlist'
+  | 'livetv'
   | 'download'
   | 'settings';
 

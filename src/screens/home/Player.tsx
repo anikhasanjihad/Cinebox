@@ -1897,6 +1897,12 @@ const Player = ({route}: Props): React.JSX.Element => {
     (e: any) => {
       console.log('PlayerError', e);
 
+      if (route.params.externalVideo?.live) {
+        ToastAndroid.show('This channel is not available right now.', ToastAndroid.LONG);
+        navigation.goBack();
+        return;
+      }
+
       if (route.params.localContent) {
         ToastAndroid.show('Cannot play this local file. Check the file and reselect its folder if access was lost.', ToastAndroid.LONG);
         navigation.goBack();

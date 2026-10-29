@@ -88,6 +88,7 @@ import {
   syncFromSharedFolder,
 } from './lib/sync/syncService';
 import StreamingTabBar from './components/navigation/StreamingTabBar';
+import LiveTv from './screens/livetv/LiveTv';
 import AppDialogHost from './components/AppDialogHost';
 import {RemoteVolumeToast} from './components/remote-player/RemoteVolumeToast';
 import {
@@ -127,7 +128,11 @@ export type RootStackParamList = {
     episodeList: EpisodeLink[];
     directUrl?: string;
     localContent?: boolean;
-    externalVideo?: {mimeType: string};
+    externalVideo?: {
+      mimeType: string;
+      headers?: Record<string, string>;
+      live?: boolean;
+    };
     type: string;
     primaryTitle?: string;
     secondaryTitle?: string;
@@ -187,6 +192,7 @@ export type TabStackParamList = {
   HomeStack: undefined;
   SearchStack: undefined;
   WatchListStack: undefined;
+  LiveTv: undefined;
   DownloadsStack: undefined;
   SettingsStack: undefined;
 };
@@ -344,6 +350,10 @@ const watchListTabOptions = {
   title: 'Library',
   tabBarIcon: makeTabIcon('bookmark', 'bookmark-outline'),
 };
+const liveTvTabOptions = {
+  title: 'Live TV',
+  tabBarIcon: makeTabIcon('television-classic', 'television-classic'),
+};
 const downloadsTabOptions = {
   title: 'Downloads',
   tabBarIcon: makeTabIcon('download', 'download-outline'),
@@ -498,6 +508,11 @@ function TabStack() {
         name="WatchListStack"
         component={WatchListStackScreen}
         options={watchListTabOptions}
+      />
+      <Tab.Screen
+        name="LiveTv"
+        component={LiveTv}
+        options={liveTvTabOptions}
       />
       {!hideDownloadsTab && (
         <Tab.Screen
