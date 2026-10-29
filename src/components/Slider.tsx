@@ -18,6 +18,7 @@ import SkeletonLoader from './Skeleton';
 import MediaPosterCard, {parseAspectRatio} from './MediaPosterCard';
 import {useM3Colors} from '../theme/M3PaletteContext';
 import {isTV} from '../lib/tv/constants';
+import {isTmdbFilter, isTmdbLink, openTmdbPost} from '../lib/tmdbHome';
 import {TVFocusable, TVFocusGuide} from './tv';
 import {useTVFocusBorderColor} from '../lib/tv/useTVFocusBorderColor';
 
@@ -144,6 +145,10 @@ const Slider = ({
   const handleItemPress = useCallback(
     (item: Post) => {
       setSelected('');
+      if (isTmdbLink(item.link)) {
+        void openTmdbPost(navigation, item);
+        return;
+      }
       navigation.navigate('Info', {
         link: item.link,
         provider: item.provider || providerValue || fallbackProviderValue,
@@ -191,7 +196,7 @@ const Slider = ({
           numberOfLines={1}>
           {title}
         </AppText>
-        {filter !== 'recent' && (
+        {filter !== 'recent' && !isTmdbFilter(filter) && (
           <TVFocusable
             accessibilityRole="button"
             accessibilityLabel={`See all ${title}`}
@@ -304,7 +309,7 @@ const Slider = ({
                   No content found
                 </AppText>
               </View>
-            ) : isTV && filter !== 'recent' && posts.length > 0 ? (
+            ) : isTV && filter !== 'recent' && !isTmdbFilter(filter) && posts.length > 0 ? (
               <View
                 style={{
                   marginLeft: 14,

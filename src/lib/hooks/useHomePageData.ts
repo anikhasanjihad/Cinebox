@@ -8,6 +8,13 @@ import {Content} from '../zustand/contentStore';
 import {cacheStorage} from '../storage';
 import {deduplicatePosts} from '../providers/deduplicatePosts';
 import type {Post} from '../providers/types';
+import {
+  getTmdbHomeData,
+  fetchTmdbHeroMeta,
+  isTmdbLink,
+  TMDB_CATALOG,
+} from '../tmdbHome';
+import useRemoteConfigStore from '../zustand/remoteConfigStore';
 
 const normalizeHomePosts = (data: HomePageData[]) =>
   data.map(category => ({
@@ -97,6 +104,57 @@ export const useHomePageData = ({
   return {...query, catalog: catalogQuery.data ?? []};
 };
 
+interface UseTmdbHomeOptions {
+  apiKey: string;
+  enabled?: boolean;
+}
+
+/** Home rows from TMDB. Independent of the selected provider. */
+export const useTmdbHomeData = ({apiKey, enabled = true}: UseTmdbHomeOptions) => {
+  const queryClient = useQueryClient();
+  const queryKey = ['tmdbHome', apiKey];
+  const cacheKey = 'tmdbHome:v1';
+  const query = useQuery<HomePageData[], Error>({
+    queryKey,
+    select: normalizeHomePosts,
+    queryFn: ({signal}) =>
+      getTmdbHomeData(apiKey, signal, {
+        previousData: queryClient.getQueryData<HomePageData[]>(queryKey),
+        onCategory: data => {
+          if (!signal.aborted)
+            queryClient.setQueryData(queryKey, data, {updatedAt: 0});
+        },
+      }),
+    enabled: enabled && !!apiKey,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    retry: (count, error) => error.name !== 'AbortError' && count < 1,
+    initialData: () => {
+      const stored = cacheStorage.getString(cacheKey);
+      if (!stored) return undefined;
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return undefined;
+      }
+    },
+    initialDataUpdatedAt: 0,
+    refetchOnWindowFocus: false,
+  });
+  useEffect(() => {
+    if (
+      !query.data?.length ||
+      query.isFetching ||
+      query.data.some(row => row.isLoading)
+    )
+      return;
+    return scheduleWhenIdle(() =>
+      cacheStorage.setString(cacheKey, JSON.stringify(query.data)),
+    );
+  }, [query.data, query.isFetching]);
+  return {...query, catalog: TMDB_CATALOG};
+};
+
 export const HERO_COUNT = 4;
 const HERO_ROTATE_MS = 8000;
 // Extra wait after interactions settle before the other heroes load.
@@ -155,14 +213,18 @@ export const clearHeroCache = (providerValue?: string) => {
   }
 };
 
+// TMDB heroes look the same on every provider, so they share one cache scope.
+const heroScope = (heroLink: string, providerValue: string) =>
+  isTmdbLink(heroLink) ? 'tmdb' : providerValue;
+
 const heroMetadataKey = (heroLink: string, providerValue: string) => [
   'heroMetadata',
   heroLink,
-  providerValue,
+  heroScope(heroLink, providerValue),
 ];
 
 const heroStorageKey = (heroLink: string, providerValue: string) =>
-  `heroMeta:${providerValue}:${heroLink}`;
+  `heroMeta:${heroScope(heroLink, providerValue)}:${heroLink}`;
 
 const readStoredHeroMetadata = (heroLink: string, providerValue: string) => {
   const cached = cacheStorage.getString(
@@ -183,6 +245,19 @@ const fetchHeroMetadata = async (
   providerValue: string,
   signal?: AbortSignal,
 ) => {
+  if (isTmdbLink(heroLink)) {
+    const meta = await fetchTmdbHeroMeta(
+      useRemoteConfigStore.getState().tmdbApiKey,
+      heroLink,
+      signal,
+    );
+    throwIfProviderAborted(signal);
+    cacheStorage.setString(
+      heroStorageKey(heroLink, providerValue),
+      JSON.stringify(meta),
+    );
+    return meta;
+  }
   const {providerManager} = await import('../services/ProviderManager');
   const {default: axios} = await import('axios');
 

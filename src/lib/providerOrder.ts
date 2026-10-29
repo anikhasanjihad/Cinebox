@@ -29,7 +29,10 @@ export const sortInstalledProviders = (
     if (rankB !== undefined) {
       return 1;
     }
-    return a.display_name.localeCompare(b.display_name);
+    // numeric: "Server 1 2" comes before "Server 1 10"
+    return a.display_name.localeCompare(b.display_name, undefined, {
+      numeric: true,
+    });
   });
 };
 

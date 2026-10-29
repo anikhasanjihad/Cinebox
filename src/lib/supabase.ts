@@ -46,5 +46,7 @@ export interface CineHubServer {
   provider_value: string | null;
   position: number;
   enabled: boolean;
+  /** provider values the admin hides from users inside this server */
+  hidden_providers?: string[] | null;
   created_at?: string;
 }

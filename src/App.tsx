@@ -35,6 +35,8 @@ import AdminPanel from './screens/admin/AdminPanel';
 import AuthScreen from './screens/auth/AuthScreen';
 import useAuthStore from './lib/zustand/authStore';
 import {syncServers} from './lib/services/serverSync';
+import {syncRemoteConfig} from './lib/services/remoteConfig';
+import {checkForUpdateOnStartup} from './lib/services/appUpdate';
 import {View as RNView, Image} from 'react-native';
 import BootSplash from 'react-native-bootsplash';
 import {SystemBars} from 'react-native-edge-to-edge';
@@ -680,10 +682,15 @@ const App = () => {
     if (authStatus !== 'signedIn') {
       return;
     }
-    const sync = () =>
-      syncServers().catch(error =>
+    const sync = () => {
+      syncRemoteConfig().catch(error =>
+        console.warn('[CineHub] Config sync failed:', error),
+      );
+      return syncServers().catch(error =>
         console.warn('[CineHub] Server sync failed:', error),
       );
+    };
+    void checkForUpdateOnStartup();
     void sync();
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {

@@ -90,6 +90,7 @@ export enum SettingsKeys {
   // Metadata services
   TMDB_API_KEY = 'tmdbApiKey',
   TMDB_API_KEY_REVISION = 'tmdbApiKeyRevision',
+  REMOTE_TMDB_API_KEY = 'remoteTmdbApiKey',
 
   // DNS over HTTPS
   DOH_ENABLED = 'dohEnabled',
@@ -784,8 +785,34 @@ export class SettingsStorage {
     mainStorage.setBool(SettingsKeys.TELEMETRY_OPT_IN, enabled);
   }
 
+  /** Key pushed by the CineHub admin (Supabase). Always wins over a local key. */
+  getRemoteTmdbApiKey(): string {
+    return mainStorage.getString(SettingsKeys.REMOTE_TMDB_API_KEY)?.trim() || '';
+  }
+
+  setRemoteTmdbApiKey(apiKey: string): boolean {
+    const next = apiKey.trim();
+    if (next === this.getRemoteTmdbApiKey()) {
+      return false;
+    }
+    if (next) {
+      mainStorage.setString(SettingsKeys.REMOTE_TMDB_API_KEY, next);
+    } else {
+      mainStorage.delete(SettingsKeys.REMOTE_TMDB_API_KEY);
+    }
+    mainStorage.setNumber(
+      SettingsKeys.TMDB_API_KEY_REVISION,
+      this.getTmdbApiKeyRevision() + 1,
+    );
+    return true;
+  }
+
   getTmdbApiKey(): string {
-    return mainStorage.getString(SettingsKeys.TMDB_API_KEY)?.trim() || '';
+    return (
+      this.getRemoteTmdbApiKey() ||
+      mainStorage.getString(SettingsKeys.TMDB_API_KEY)?.trim() ||
+      ''
+    );
   }
 
   setTmdbApiKey(apiKey: string): void {

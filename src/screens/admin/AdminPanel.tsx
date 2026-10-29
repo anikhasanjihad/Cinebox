@@ -1,8 +1,12 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   BackHandler,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
+  StatusBar,
   Switch,
   Text,
   TextInput,
@@ -14,18 +18,44 @@ import {MaterialIcons} from '@expo/vector-icons';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {SettingsStackParamList} from '../../App';
 import {TVFocusable, TVFocusGuide} from '../../components/tv';
+import ProviderIcon from '../../components/ProviderIcon';
 import {isTV} from '../../lib/tv';
-import {useM3Colors} from '../../theme/M3PaletteContext';
 import {supabase, CineHubServer} from '../../lib/supabase';
 import useAuthStore from '../../lib/zustand/authStore';
 import {showAppDialog} from '../../lib/zustand/appDialogStore';
 import {
   fetchServers,
+  managedAuthor,
   syncServers,
   testServerSource,
 } from '../../lib/services/serverSync';
+import {
+  extensionStorage,
+  ProviderExtension,
+} from '../../lib/storage/extensionStorage';
+import {
+  fetchTmdbApiKeyForAdmin,
+  saveTmdbApiKey,
+} from '../../lib/services/remoteConfig';
+import {validateTmdbKey} from '../../lib/tmdbHome';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'AdminPanel'>;
+
+// iOS "inset grouped" look (dark appearance).
+const IOS = {
+  bg: '#000000',
+  group: '#1C1C1E',
+  separator: 'rgba(84,84,88,0.65)',
+  label: '#FFFFFF',
+  secondary: 'rgba(235,235,245,0.6)',
+  tertiary: 'rgba(235,235,245,0.3)',
+  tint: '#E50914',
+  blue: '#0A84FF',
+  green: '#34C759',
+  orange: '#FF9F0A',
+  purple: '#BF5AF2',
+  red: '#FF453A',
+};
 
 interface Draft {
   id?: string;
@@ -34,6 +64,7 @@ interface Draft {
   manifest_url: string;
   provider_value: string;
   enabled: boolean;
+  hidden: string[];
 }
 
 const EMPTY: Draft = {
@@ -42,109 +73,349 @@ const EMPTY: Draft = {
   manifest_url: '',
   provider_value: '',
   enabled: true,
+  hidden: [],
 };
 
-const RED = '#E50914';
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+};
 
-const Field = ({
-  label,
-  hint,
-  value,
-  onChangeText,
-  colors,
+/* ───────────────────────────── building blocks ───────────────────────────── */
+
+const Group = ({
+  header,
+  footer,
+  inset = 16,
+  children,
 }: {
-  label: string;
-  hint?: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  colors: ReturnType<typeof useM3Colors>;
+  header?: string;
+  footer?: string;
+  inset?: number;
+  children: React.ReactNode;
+}) => {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return (
+    <View style={{marginBottom: 26}}>
+      {!!header && (
+        <Text
+          style={{
+            color: IOS.secondary,
+            fontSize: 13,
+            letterSpacing: 0.3,
+            marginBottom: 7,
+            marginLeft: 32,
+            textTransform: 'uppercase',
+          }}>
+          {header}
+        </Text>
+      )}
+      <View
+        style={{
+          backgroundColor: IOS.group,
+          borderRadius: 12,
+          marginHorizontal: 16,
+          overflow: 'hidden',
+        }}>
+        {items.map((child, index) => (
+          <View key={index}>
+            {child}
+            {index < items.length - 1 && (
+              <View
+                style={{
+                  backgroundColor: IOS.separator,
+                  height: 0.5,
+                  marginLeft: inset,
+                }}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+      {!!footer && (
+        <Text
+          style={{
+            color: IOS.secondary,
+            fontSize: 13,
+            lineHeight: 18,
+            marginHorizontal: 32,
+            marginTop: 7,
+          }}>
+          {footer}
+        </Text>
+      )}
+    </View>
+  );
+};
+
+const Badge = ({
+  icon,
+  color,
+}: {
+  icon: React.ComponentProps<typeof MaterialIcons>['name'];
+  color: string;
 }) => (
-  <View style={{marginBottom: 12}}>
-    <Text style={{color: colors.onSurfaceVariant, fontSize: 12, marginBottom: 6}}>
-      {label}
-    </Text>
-    <TextInput
-      value={value}
-      onChangeText={onChangeText}
-      autoCapitalize="none"
-      autoCorrect={false}
-      selectionColor={RED}
-      cursorColor={RED}
-      placeholder={hint}
-      placeholderTextColor={colors.outline}
-      style={{
-        color: colors.onSurface,
-        backgroundColor: colors.surfaceContainerHigh,
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: isTV ? 14 : 11,
-        fontSize: isTV ? 18 : 15,
-      }}
-    />
+  <View
+    style={{
+      alignItems: 'center',
+      backgroundColor: color,
+      borderRadius: 7,
+      height: 30,
+      justifyContent: 'center',
+      marginRight: 12,
+      width: 30,
+    }}>
+    <MaterialIcons name={icon} size={18} color="#fff" />
   </View>
 );
 
-const Btn = ({
+const Row = ({
+  leading,
   title,
-  icon,
+  subtitle,
+  value,
+  trailing,
+  chevron,
   onPress,
-  primary,
-  danger,
+  tint,
   disabled,
-  small,
 }: {
-  title?: string;
-  icon?: React.ComponentProps<typeof MaterialIcons>['name'];
-  onPress: () => void;
-  primary?: boolean;
-  danger?: boolean;
+  leading?: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  value?: string;
+  trailing?: React.ReactNode;
+  chevron?: boolean;
+  onPress?: () => void;
+  tint?: string;
   disabled?: boolean;
-  small?: boolean;
+}) => {
+  const content = (
+    <View
+      style={{
+        alignItems: 'center',
+        flexDirection: 'row',
+        minHeight: 52,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+      }}>
+      {leading}
+      <View style={{flex: 1, marginRight: 8}}>
+        <Text
+          numberOfLines={1}
+          style={{color: tint ?? IOS.label, fontSize: 17}}>
+          {title}
+        </Text>
+        {!!subtitle && (
+          <Text
+            numberOfLines={1}
+            style={{color: IOS.secondary, fontSize: 13, marginTop: 2}}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
+      {!!value && (
+        <Text style={{color: IOS.secondary, fontSize: 17, marginRight: 6}}>
+          {value}
+        </Text>
+      )}
+      {trailing}
+      {chevron && (
+        <MaterialIcons name="chevron-right" size={22} color={IOS.tertiary} />
+      )}
+    </View>
+  );
+  if (!onPress) {
+    return content;
+  }
+  return (
+    <TVFocusable
+      onPress={onPress}
+      disabled={disabled}
+      borderRadius={12}
+      style={{opacity: disabled ? 0.5 : 1}}>
+      {content}
+    </TVFocusable>
+  );
+};
+
+const IosSwitch = ({
+  value,
+  onValueChange,
+}: {
+  value: boolean;
+  onValueChange: (v: boolean) => void;
 }) => (
-  <TVFocusable
-    onPress={onPress}
-    disabled={disabled}
-    borderRadius={12}
-    style={{
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: small ? 12 : 18,
-      paddingVertical: small ? 8 : 12,
-      borderRadius: 12,
-      marginRight: 8,
-      marginBottom: 8,
-      backgroundColor: primary ? RED : danger ? 'rgba(255,90,99,0.16)' : 'rgba(255,255,255,0.09)',
-      opacity: disabled ? 0.5 : 1,
-    }}>
-    {icon && (
-      <MaterialIcons
-        name={icon}
-        size={small ? 18 : 20}
-        color={danger ? '#ff6b73' : '#fff'}
-        style={{marginRight: title ? 6 : 0}}
-      />
-    )}
-    {title ? (
-      <Text style={{color: danger ? '#ff6b73' : '#fff', fontWeight: '700', fontSize: small ? 13 : 14.5}}>
-        {title}
-      </Text>
-    ) : null}
-  </TVFocusable>
+  <Switch
+    value={value}
+    onValueChange={onValueChange}
+    trackColor={{true: IOS.green, false: '#39393D'}}
+    thumbColor="#fff"
+  />
 );
 
+const InputRow = ({
+  value,
+  onChangeText,
+  placeholder,
+  secure,
+  trailing,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  secure?: boolean;
+  trailing?: React.ReactNode;
+}) => (
+  <View
+    style={{
+      alignItems: 'center',
+      flexDirection: 'row',
+      minHeight: 48,
+      paddingHorizontal: 16,
+    }}>
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={IOS.tertiary}
+      autoCapitalize="none"
+      autoCorrect={false}
+      secureTextEntry={secure}
+      selectionColor={IOS.tint}
+      cursorColor={IOS.tint}
+      style={{
+        color: IOS.label,
+        flex: 1,
+        fontSize: 17,
+        paddingVertical: isTV ? 14 : 10,
+      }}
+    />
+    {trailing}
+  </View>
+);
+
+const Sheet = ({
+  visible,
+  title,
+  doneLabel = 'Save',
+  doneDisabled,
+  busy,
+  onCancel,
+  onDone,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  doneLabel?: string;
+  doneDisabled?: boolean;
+  busy?: boolean;
+  onCancel: () => void;
+  onDone: () => void;
+  children: React.ReactNode;
+}) => (
+  <Modal
+    visible={visible}
+    transparent
+    animationType="slide"
+    statusBarTranslucent
+    onRequestClose={onCancel}>
+    <View style={{backgroundColor: 'rgba(0,0,0,0.45)', flex: 1}}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{
+          backgroundColor: IOS.bg,
+          borderTopLeftRadius: 14,
+          borderTopRightRadius: 14,
+          flex: 1,
+          marginTop: (StatusBar.currentHeight ?? 24) + 14,
+          overflow: 'hidden',
+        }}>
+        <View
+          style={{
+            alignItems: 'center',
+            flexDirection: 'row',
+            height: 56,
+            justifyContent: 'space-between',
+            paddingHorizontal: 8,
+          }}>
+          <TVFocusable
+            onPress={onCancel}
+            borderRadius={10}
+            style={{paddingHorizontal: 10, paddingVertical: 10}}>
+            <Text style={{color: IOS.tint, fontSize: 17}}>Cancel</Text>
+          </TVFocusable>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: IOS.label,
+              flex: 1,
+              fontSize: 17,
+              fontWeight: '600',
+              textAlign: 'center',
+            }}>
+            {title}
+          </Text>
+          <TVFocusable
+            onPress={onDone}
+            disabled={doneDisabled || busy}
+            borderRadius={10}
+            style={{
+              minWidth: 60,
+              opacity: doneDisabled ? 0.4 : 1,
+              paddingHorizontal: 10,
+              paddingVertical: 10,
+            }}>
+            {busy ? (
+              <ActivityIndicator color={IOS.tint} />
+            ) : (
+              <Text
+                style={{
+                  color: IOS.tint,
+                  fontSize: 17,
+                  fontWeight: '600',
+                  textAlign: 'right',
+                }}>
+                {doneLabel}
+              </Text>
+            )}
+          </TVFocusable>
+        </View>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{paddingBottom: 280, paddingTop: 12}}>
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  </Modal>
+);
+
+/* ─────────────────────────────────── screen ─────────────────────────────────── */
+
 const AdminPanel = ({navigation}: Props) => {
-  const colors = useM3Colors();
   const isAdmin = useAuthStore(s => s.isAdmin);
 
   const [servers, setServers] = useState<CineHubServer[]>([]);
   const [userCount, setUserCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState('');
-  const [syncing, setSyncing] = useState(false);
+  const [providers, setProviders] = useState<ProviderExtension[] | null>(null);
+  const [providersLoading, setProvidersLoading] = useState(false);
+  const [providersError, setProvidersError] = useState('');
+
+  const [tmdbOpen, setTmdbOpen] = useState(false);
+  const [tmdbSaved, setTmdbSaved] = useState('');
+  const [tmdbDraft, setTmdbDraft] = useState('');
+  const [tmdbShow, setTmdbShow] = useState(false);
+  const [tmdbBusy, setTmdbBusy] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -154,13 +425,15 @@ const AdminPanel = ({navigation}: Props) => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
         if (draft) {
           setDraft(null);
+        } else if (tmdbOpen) {
+          setTmdbOpen(false);
         } else {
           navigation.goBack();
         }
         return true;
       });
       return () => sub.remove();
-    }, [navigation, draft]),
+    }, [navigation, draft, tmdbOpen]),
   );
 
   const load = useCallback(async () => {
@@ -171,6 +444,9 @@ const AdminPanel = ({navigation}: Props) => {
         .from('profiles')
         .select('id', {count: 'exact', head: true});
       setUserCount(count ?? null);
+      fetchTmdbApiKeyForAdmin()
+        .then(setTmdbSaved)
+        .catch(() => {});
     } catch (e) {
       ToastAndroid.show(
         e instanceof Error ? e.message : 'Could not load servers',
@@ -187,55 +463,88 @@ const AdminPanel = ({navigation}: Props) => {
     }
   }, [isAdmin, load]);
 
+  // How many providers each server gave this device (what users get).
+  const installedCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of extensionStorage.getInstalledProviders()) {
+      const author = p.source?.author;
+      if (author) {
+        counts.set(author, (counts.get(author) ?? 0) + 1);
+      }
+    }
+    return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servers, syncing]);
+
   if (!isAdmin) {
     return (
-      <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background}}>
-        <MaterialIcons name="lock-outline" size={44} color={colors.onSurfaceVariant} />
-        <Text style={{color: colors.onSurface, marginTop: 12, fontSize: 16}}>
+      <View
+        style={{
+          alignItems: 'center',
+          backgroundColor: IOS.bg,
+          flex: 1,
+          justifyContent: 'center',
+        }}>
+        <MaterialIcons name="lock-outline" size={44} color={IOS.secondary} />
+        <Text style={{color: IOS.label, fontSize: 17, marginTop: 12}}>
           Admins only
         </Text>
       </View>
     );
   }
 
+  /* ── provider list inside a server ── */
+
+  const loadProviders = async (source: string, manifest: string) => {
+    if (!source.trim()) {
+      setProvidersError('Enter the source URL first.');
+      return;
+    }
+    setProvidersLoading(true);
+    setProvidersError('');
+    try {
+      const list = await testServerSource(source, manifest);
+      setProviders(list.filter(p => !p.disabled));
+    } catch (e) {
+      setProviders(null);
+      setProvidersError(
+        e instanceof Error ? e.message : 'Source not reachable',
+      );
+    } finally {
+      setProvidersLoading(false);
+    }
+  };
+
   const startAdd = () => {
-    setTestResult('');
+    setProviders(null);
+    setProvidersError('');
     setDraft({...EMPTY, label: `Server ${servers.length + 1}`});
   };
 
   const startEdit = (s: CineHubServer) => {
-    setTestResult('');
-    setDraft({
+    const next: Draft = {
       id: s.id,
       label: s.label,
       source_url: s.source_url,
       manifest_url: s.manifest_url ?? '',
       provider_value: s.provider_value ?? '',
       enabled: s.enabled,
-    });
+      hidden: s.hidden_providers ?? [],
+    };
+    setProviders(null);
+    setProvidersError('');
+    setDraft(next);
+    void loadProviders(next.source_url, next.manifest_url);
   };
 
-  const runTest = async () => {
-    if (!draft?.source_url.trim()) {
-      setTestResult('Enter the source URL first.');
+  const toggleHidden = (value: string, shown: boolean) => {
+    if (!draft) {
       return;
     }
-    setTesting(true);
-    setTestResult('');
-    try {
-      const list = await testServerSource(draft.source_url, draft.manifest_url);
-      setTestResult(
-        list.length === 0
-          ? 'Reached the source, but the manifest is empty.'
-          : `✓ Found ${list.length} provider${list.length > 1 ? 's' : ''}: ${list
-              .map(p => p.value)
-              .join(', ')}`,
-      );
-    } catch (e) {
-      setTestResult(`✗ ${e instanceof Error ? e.message : 'Source not reachable'}`);
-    } finally {
-      setTesting(false);
-    }
+    const hidden = shown
+      ? draft.hidden.filter(v => v !== value)
+      : [...draft.hidden, value];
+    setDraft({...draft, hidden});
   };
 
   const save = async () => {
@@ -243,7 +552,7 @@ const AdminPanel = ({navigation}: Props) => {
       return;
     }
     if (!draft.label.trim() || !draft.source_url.trim()) {
-      ToastAndroid.show('Label and Source URL are required', ToastAndroid.SHORT);
+      ToastAndroid.show('Name and Source URL are required', ToastAndroid.SHORT);
       return;
     }
     setSaving(true);
@@ -253,6 +562,7 @@ const AdminPanel = ({navigation}: Props) => {
       manifest_url: draft.manifest_url.trim() || null,
       provider_value: draft.provider_value.trim() || null,
       enabled: draft.enabled,
+      hidden_providers: draft.hidden,
     };
     const result = draft.id
       ? await supabase.from('cinehub_servers').update(row).eq('id', draft.id)
@@ -261,12 +571,18 @@ const AdminPanel = ({navigation}: Props) => {
           .insert({...row, position: servers.length});
     setSaving(false);
     if (result.error) {
-      ToastAndroid.show(result.error.message, ToastAndroid.LONG);
+      const message = result.error.message;
+      ToastAndroid.show(
+        message.includes('hidden_providers')
+          ? 'Run supabase/migration-v2.sql in Supabase first'
+          : message,
+        ToastAndroid.LONG,
+      );
       return;
     }
     setDraft(null);
     await load();
-    ToastAndroid.show('Saved. Users get it on next app start.', ToastAndroid.SHORT);
+    ToastAndroid.show('Saved. Users get it automatically.', ToastAndroid.SHORT);
     void syncServers().catch(() => {});
   };
 
@@ -295,6 +611,7 @@ const AdminPanel = ({navigation}: Props) => {
     next[index] = {...b, position: index};
     next[other] = {...a, position: other};
     setServers(next);
+    setDraft(null);
     const results = await Promise.all([
       supabase.from('cinehub_servers').update({position: other}).eq('id', a.id),
       supabase.from('cinehub_servers').update({position: index}).eq('id', b.id),
@@ -307,8 +624,8 @@ const AdminPanel = ({navigation}: Props) => {
 
   const remove = (s: CineHubServer) => {
     showAppDialog({
-      title: `Delete "${s.label}"?`,
-      message: 'Users will lose this server on their next app start.',
+      title: `Delete “${s.label}”?`,
+      message: 'Users will lose this server the next time the app syncs.',
       variant: 'error',
       actions: [
         {label: 'Cancel'},
@@ -324,6 +641,7 @@ const AdminPanel = ({navigation}: Props) => {
               ToastAndroid.show(error.message, ToastAndroid.LONG);
               return;
             }
+            setDraft(null);
             await load();
             void syncServers().catch(() => {});
           },
@@ -343,192 +661,403 @@ const AdminPanel = ({navigation}: Props) => {
         ToastAndroid.LONG,
       );
     } catch (e) {
-      ToastAndroid.show(e instanceof Error ? e.message : 'Sync failed', ToastAndroid.LONG);
+      ToastAndroid.show(
+        e instanceof Error ? e.message : 'Sync failed',
+        ToastAndroid.LONG,
+      );
     } finally {
       setSyncing(false);
     }
   };
 
-  const card = {
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-  } as const;
+  /* ── TMDB key ── */
+
+  const openTmdb = () => {
+    setTmdbDraft(tmdbSaved);
+    setTmdbShow(false);
+    setTmdbOpen(true);
+  };
+
+  const saveTmdb = async () => {
+    const key = tmdbDraft.trim();
+    setTmdbBusy(true);
+    try {
+      if (key && !(await validateTmdbKey(key))) {
+        ToastAndroid.show(
+          'TMDB rejected this key. Check it and retry.',
+          ToastAndroid.LONG,
+        );
+        return;
+      }
+      await saveTmdbApiKey(key);
+      setTmdbSaved(key);
+      setTmdbOpen(false);
+      ToastAndroid.show(
+        key ? 'TMDB key saved for all users' : 'TMDB key removed',
+        ToastAndroid.SHORT,
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Could not save';
+      ToastAndroid.show(
+        message.includes('app_settings')
+          ? 'Run supabase/migration-v2.sql in Supabase first'
+          : message,
+        ToastAndroid.LONG,
+      );
+    } finally {
+      setTmdbBusy(false);
+    }
+  };
+
+  const maskedKey = tmdbSaved ? `••••${tmdbSaved.slice(-4)}` : 'Not set';
+
+  const draftIndex = draft?.id ? servers.findIndex(s => s.id === draft.id) : -1;
+  const draftServer = draftIndex >= 0 ? servers[draftIndex] : null;
+
+  const statTile = (
+    icon: React.ComponentProps<typeof MaterialIcons>['name'],
+    color: string,
+    label: string,
+    value: string | number,
+    marginRight = 0,
+  ) => (
+    <View
+      style={{
+        backgroundColor: IOS.group,
+        borderRadius: 16,
+        flex: 1,
+        marginRight,
+        padding: 14,
+      }}>
+      <View
+        style={{
+          alignItems: 'center',
+          backgroundColor: color,
+          borderRadius: 15,
+          height: 30,
+          justifyContent: 'center',
+          width: 30,
+        }}>
+        <MaterialIcons name={icon} size={17} color="#fff" />
+      </View>
+      <Text
+        style={{
+          color: IOS.label,
+          fontSize: 32,
+          fontWeight: '700',
+          marginTop: 10,
+        }}>
+        {value}
+      </Text>
+      <Text style={{color: IOS.secondary, fontSize: 13}}>{label}</Text>
+    </View>
+  );
 
   return (
     <TVFocusGuide autoFocus trapFocusRight style={{flex: 1}}>
       <ScrollView
         focusable={false}
-        style={{backgroundColor: colors.background}}
-        contentContainerStyle={{padding: 20, paddingBottom: 60}}
+        style={{backgroundColor: IOS.bg}}
+        contentContainerStyle={{paddingBottom: 80, paddingTop: 8}}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 18}}>
-          <TVFocusable onPress={() => navigation.goBack()} borderRadius={22} style={{padding: 8, marginRight: 8}}>
-            <MaterialIcons name="arrow-back" size={26} color={colors.onBackground} />
-          </TVFocusable>
-          <View style={{flex: 1}}>
-            <Text style={{color: colors.onBackground, fontSize: 24, fontWeight: '800'}}>
-              Admin Panel
-            </Text>
-            <Text style={{color: colors.onSurfaceVariant, fontSize: 13}}>
-              Manage the servers your users see
-            </Text>
-          </View>
+        <TVFocusable
+          onPress={() => navigation.goBack()}
+          borderRadius={12}
+          style={{
+            alignItems: 'center',
+            alignSelf: 'flex-start',
+            flexDirection: 'row',
+            marginLeft: 6,
+            paddingHorizontal: 6,
+            paddingVertical: 8,
+          }}>
+          <MaterialIcons name="chevron-left" size={30} color={IOS.tint} />
+          <Text style={{color: IOS.tint, fontSize: 17, marginLeft: -2}}>
+            Settings
+          </Text>
+        </TVFocusable>
+        <Text
+          style={{
+            color: IOS.label,
+            fontSize: 34,
+            fontWeight: '700',
+            marginBottom: 18,
+            marginLeft: 20,
+            marginTop: 4,
+          }}>
+          Admin Panel
+        </Text>
+
+        <View
+          style={{flexDirection: 'row', marginBottom: 26, marginHorizontal: 16}}>
+          {statTile('dns', IOS.tint, 'Servers', servers.length, 12)}
+          {statTile('people', IOS.blue, 'Users', userCount ?? '–')}
         </View>
 
-        <View style={{flexDirection: 'row', marginBottom: 12}}>
-          <View style={[card, {flex: 1, marginRight: 10, marginBottom: 0}]}>
-            <Text style={{color: colors.onSurfaceVariant, fontSize: 12}}>Servers</Text>
-            <Text style={{color: colors.onSurface, fontSize: 26, fontWeight: '800'}}>
-              {servers.length}
-            </Text>
-          </View>
-          <View style={[card, {flex: 1, marginBottom: 0}]}>
-            <Text style={{color: colors.onSurfaceVariant, fontSize: 12}}>Users</Text>
-            <Text style={{color: colors.onSurface, fontSize: 26, fontWeight: '800'}}>
-              {userCount ?? '–'}
-            </Text>
-          </View>
-        </View>
+        {loading && servers.length === 0 ? (
+          <ActivityIndicator color={IOS.tint} style={{marginVertical: 30}} />
+        ) : (
+          <Group
+            header="Servers"
+            inset={58}
+            footer="Users see each provider as “Server 1 1”, “Server 1 2”… Real provider names are visible to you only.">
+            {servers.map((s, i) => {
+              const count = installedCounts.get(managedAuthor(s.id)) ?? 0;
+              return (
+                <Row
+                  key={s.id}
+                  leading={
+                    <View
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: s.enabled ? IOS.tint : '#48484A',
+                        borderRadius: 7,
+                        height: 30,
+                        justifyContent: 'center',
+                        marginRight: 12,
+                        width: 30,
+                      }}>
+                      <Text
+                        style={{color: '#fff', fontSize: 15, fontWeight: '700'}}>
+                        {i + 1}
+                      </Text>
+                    </View>
+                  }
+                  title={s.label}
+                  subtitle={`${hostOf(s.source_url)}${
+                    count ? ` · ${count} provider${count > 1 ? 's' : ''}` : ''
+                  }`}
+                  trailing={
+                    <IosSwitch
+                      value={s.enabled}
+                      onValueChange={v => toggle(s, v)}
+                    />
+                  }
+                  onPress={() => startEdit(s)}
+                />
+              );
+            })}
+            <Row
+              leading={<Badge icon="add" color={IOS.green} />}
+              title="Add Server"
+              tint={IOS.tint}
+              onPress={startAdd}
+            />
+          </Group>
+        )}
 
-        <View style={{flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8}}>
-          <Btn primary icon="add" title="Add server" onPress={startAdd} />
-          <Btn
-            icon="sync"
-            title={syncing ? 'Syncing…' : 'Sync now'}
+        <Group
+          header="Metadata"
+          inset={58}
+          footer="Powers the Home page, details and trailers in every user’s app. Users never see or edit this.">
+          <Row
+            leading={<Badge icon="movie" color={IOS.blue} />}
+            title="TMDB API Key"
+            value={maskedKey}
+            chevron
+            onPress={openTmdb}
+          />
+        </Group>
+
+        <Group
+          header="Actions"
+          inset={58}
+          footer="Sync applies the server list to this device. Users pick up changes on their own when they open the app.">
+          <Row
+            leading={<Badge icon="sync" color={IOS.orange} />}
+            title="Sync Now"
+            tint={IOS.tint}
             disabled={syncing}
+            trailing={
+              syncing ? <ActivityIndicator color={IOS.tint} /> : undefined
+            }
             onPress={syncNow}
           />
-          <Btn icon="refresh" title="Reload" onPress={load} />
-        </View>
-
-        {draft && (
-          <View style={[card, {borderWidth: 1, borderColor: 'rgba(229,9,20,0.5)'}]}>
-            <Text style={{color: colors.onSurface, fontSize: 17, fontWeight: '800', marginBottom: 12}}>
-              {draft.id ? 'Edit server' : 'New server'}
-            </Text>
-            <Field
-              colors={colors}
-              label="Name users will see"
-              hint="Server 1"
-              value={draft.label}
-              onChangeText={v => setDraft({...draft, label: v})}
-            />
-            <Field
-              colors={colors}
-              label="Provider source URL"
-              hint="https://github.com/you/your-providers"
-              value={draft.source_url}
-              onChangeText={v => setDraft({...draft, source_url: v})}
-            />
-            <Field
-              colors={colors}
-              label="Manifest URL (optional)"
-              hint="only if manifest.json is somewhere else"
-              value={draft.manifest_url}
-              onChangeText={v => setDraft({...draft, manifest_url: v})}
-            />
-            <Field
-              colors={colors}
-              label="Only this provider (optional)"
-              hint="provider value from manifest, blank = all"
-              value={draft.provider_value}
-              onChangeText={v => setDraft({...draft, provider_value: v})}
-            />
-            <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 12}}>
-              <Switch
-                value={draft.enabled}
-                onValueChange={v => setDraft({...draft, enabled: v})}
-                trackColor={{true: RED, false: '#555'}}
-                thumbColor="#fff"
-              />
-              <Text style={{color: colors.onSurface, marginLeft: 10}}>Visible to users</Text>
-            </View>
-            {!!testResult && (
-              <Text
-                style={{
-                  color: testResult.startsWith('✓') ? '#46d369' : '#ff6b73',
-                  marginBottom: 12,
-                  fontSize: 13,
-                }}>
-                {testResult}
-              </Text>
-            )}
-            <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>
-              <Btn primary title={saving ? 'Saving…' : 'Save'} disabled={saving} onPress={save} />
-              <Btn
-                icon="bolt"
-                title={testing ? 'Testing…' : 'Test source'}
-                disabled={testing}
-                onPress={runTest}
-              />
-              <Btn title="Cancel" onPress={() => setDraft(null)} />
-            </View>
-          </View>
-        )}
-
-        {loading ? (
-          <ActivityIndicator color={RED} style={{marginTop: 30}} />
-        ) : servers.length === 0 ? (
-          <View style={[card, {alignItems: 'center', paddingVertical: 30}]}>
-            <MaterialIcons name="dns" size={40} color={colors.onSurfaceVariant} />
-            <Text style={{color: colors.onSurfaceVariant, marginTop: 10, textAlign: 'center'}}>
-              No servers yet. Tap “Add server” to add your first provider source.
-            </Text>
-          </View>
-        ) : (
-          servers.map((s, i) => (
-            <View key={s.id} style={[card, {opacity: s.enabled ? 1 : 0.6}]}>
-              <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                <View
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 17,
-                    backgroundColor: RED,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: 12,
-                  }}>
-                  <Text style={{color: '#fff', fontWeight: '800'}}>{i + 1}</Text>
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={{color: colors.onSurface, fontSize: 16, fontWeight: '800'}}>
-                    {s.label}
-                  </Text>
-                  <Text numberOfLines={1} style={{color: colors.onSurfaceVariant, fontSize: 12}}>
-                    {s.source_url}
-                  </Text>
-                  {!!s.provider_value && (
-                    <Text style={{color: colors.onSurfaceVariant, fontSize: 12}}>
-                      only: {s.provider_value}
-                    </Text>
-                  )}
-                </View>
-                <Switch
-                  value={s.enabled}
-                  onValueChange={v => toggle(s, v)}
-                  trackColor={{true: RED, false: '#555'}}
-                  thumbColor="#fff"
-                />
-              </View>
-              <View style={{flexDirection: 'row', flexWrap: 'wrap', marginTop: 12}}>
-                <Btn small icon="edit" title="Edit" onPress={() => startEdit(s)} />
-                <Btn small icon="arrow-upward" disabled={i === 0} onPress={() => move(i, -1)} />
-                <Btn
-                  small
-                  icon="arrow-downward"
-                  disabled={i === servers.length - 1}
-                  onPress={() => move(i, 1)}
-                />
-                <Btn small danger icon="delete-outline" title="Delete" onPress={() => remove(s)} />
-              </View>
-            </View>
-          ))
-        )}
+          <Row
+            leading={<Badge icon="refresh" color={IOS.purple} />}
+            title="Reload"
+            tint={IOS.tint}
+            onPress={load}
+          />
+        </Group>
       </ScrollView>
+
+      {/* ───── server sheet ───── */}
+      <Sheet
+        visible={!!draft}
+        title={draft?.id ? 'Edit Server' : 'New Server'}
+        busy={saving}
+        onCancel={() => setDraft(null)}
+        onDone={save}>
+        {draft && (
+          <>
+            <Group header="Name users see">
+              <InputRow
+                value={draft.label}
+                placeholder="Server 1"
+                onChangeText={v => setDraft({...draft, label: v})}
+              />
+            </Group>
+            <Group header="Provider source URL">
+              <InputRow
+                value={draft.source_url}
+                placeholder="https://github.com/you/your-providers"
+                onChangeText={v => setDraft({...draft, source_url: v})}
+              />
+            </Group>
+            <Group
+              header="Manifest URL (optional)"
+              footer="Only if manifest.json lives somewhere else.">
+              <InputRow
+                value={draft.manifest_url}
+                placeholder="https://…/manifest.json"
+                onChangeText={v => setDraft({...draft, manifest_url: v})}
+              />
+            </Group>
+            <Group
+              header="Only this provider (optional)"
+              footer="Provider value from the manifest. Blank means all providers.">
+              <InputRow
+                value={draft.provider_value}
+                placeholder="e.g. vegamovies"
+                onChangeText={v => setDraft({...draft, provider_value: v})}
+              />
+            </Group>
+            <Group>
+              <Row
+                title="Visible to users"
+                trailing={
+                  <IosSwitch
+                    value={draft.enabled}
+                    onValueChange={v => setDraft({...draft, enabled: v})}
+                  />
+                }
+              />
+            </Group>
+
+            <Group
+              header={providers ? `Providers · ${providers.length}` : 'Providers'}
+              inset={58}
+              footer={
+                providersError
+                  ? providersError
+                  : providers
+                    ? 'Switch off a provider to hide it from users. Applies when you tap Save.'
+                    : undefined
+              }>
+              {providers && providers.length > 0 ? (
+                providers.map(p => (
+                  <Row
+                    key={p.value}
+                    leading={
+                      <View style={{marginRight: 12}}>
+                        <ProviderIcon
+                          uri={p.icon}
+                          name={p.display_name}
+                          size={30}
+                          background="#3A3A3C"
+                          color="#fff"
+                        />
+                      </View>
+                    }
+                    title={p.display_name}
+                    subtitle={`${p.value} · v${p.version}`}
+                    trailing={
+                      <IosSwitch
+                        value={!draft.hidden.includes(p.value)}
+                        onValueChange={v => toggleHidden(p.value, v)}
+                      />
+                    }
+                  />
+                ))
+              ) : (
+                <Row
+                  leading={<Badge icon="cloud-download" color={IOS.blue} />}
+                  title={
+                    providersLoading
+                      ? 'Loading providers…'
+                      : providers
+                        ? 'No providers found'
+                        : 'Load Providers'
+                  }
+                  tint={IOS.tint}
+                  disabled={providersLoading}
+                  trailing={
+                    providersLoading ? (
+                      <ActivityIndicator color={IOS.tint} />
+                    ) : undefined
+                  }
+                  onPress={() =>
+                    loadProviders(draft.source_url, draft.manifest_url)
+                  }
+                />
+              )}
+            </Group>
+
+            {draftServer && (
+              <>
+                <Group>
+                  <Row
+                    title="Move Up"
+                    tint={draftIndex === 0 ? IOS.tertiary : IOS.tint}
+                    disabled={draftIndex === 0}
+                    onPress={() => move(draftIndex, -1)}
+                  />
+                  <Row
+                    title="Move Down"
+                    tint={
+                      draftIndex === servers.length - 1
+                        ? IOS.tertiary
+                        : IOS.tint
+                    }
+                    disabled={draftIndex === servers.length - 1}
+                    onPress={() => move(draftIndex, 1)}
+                  />
+                </Group>
+                <Group>
+                  <Row
+                    title="Delete Server"
+                    tint={IOS.red}
+                    onPress={() => remove(draftServer)}
+                  />
+                </Group>
+              </>
+            )}
+          </>
+        )}
+      </Sheet>
+
+      {/* ───── TMDB sheet ───── */}
+      <Sheet
+        visible={tmdbOpen}
+        title="TMDB API Key"
+        busy={tmdbBusy}
+        onCancel={() => setTmdbOpen(false)}
+        onDone={saveTmdb}>
+        <Group
+          header="API key (v3)"
+          footer="Get it free at themoviedb.org → Settings → API. The key is checked with TMDB before saving. Leave it empty and save to remove it; Home then falls back to each provider’s own catalog.">
+          <InputRow
+            value={tmdbDraft}
+            placeholder="Paste TMDB API v3 key"
+            secure={!tmdbShow}
+            onChangeText={setTmdbDraft}
+            trailing={
+              <TVFocusable
+                onPress={() => setTmdbShow(v => !v)}
+                borderRadius={16}
+                style={{padding: 6}}>
+                <MaterialIcons
+                  name={tmdbShow ? 'visibility-off' : 'visibility'}
+                  size={22}
+                  color={IOS.secondary}
+                />
+              </TVFocusable>
+            }
+          />
+        </Group>
+      </Sheet>
     </TVFocusGuide>
   );
 };

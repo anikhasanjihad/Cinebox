@@ -38,6 +38,7 @@ import {
 } from '../lib/hooks/useHomePageData';
 import useContentStore from '../lib/zustand/contentStore';
 import useHeroStore from '../lib/zustand/herostore';
+import {isTmdbLink, openTmdbPost} from '../lib/tmdbHome';
 import {useM3Colors} from '../theme/M3PaletteContext';
 import {mixHex} from '../theme/seeds';
 import {
@@ -468,6 +469,10 @@ const Hero = memo(
     );
     const openDetails = useCallback(() => {
       if (!hero?.link) {
+        return;
+      }
+      if (isTmdbLink(hero.link)) {
+        void openTmdbPost(navigation, hero);
         return;
       }
       navigation.navigate('Info', {

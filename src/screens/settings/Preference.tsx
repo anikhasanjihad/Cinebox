@@ -14,7 +14,6 @@ import DownloadLocationPreference from './components/DownloadLocationPreference'
 import useNavigationPreferencesStore from '../../lib/zustand/navigationPreferencesStore';
 import DownloadConcurrencyPreference from './components/DownloadConcurrencyPreference';
 import VerificationWindowPreference from './components/VerificationWindowPreference';
-import TmdbApiKeyPreference from './components/TmdbApiKeyPreference';
 import AppText from '../../components/ui/Text';
 import SettingsSection from '../../components/ui/SettingsSection';
 import SettingsPage from '../../components/ui/SettingsPage';
@@ -74,10 +73,6 @@ const Preferences = ({navigation}: any) => {
     settingsStorage.getExcludedQualities(),
   );
 
-  const [tmdbInputKey, setTmdbInputKey] = useState(() => settingsStorage.getTmdbApiKey());
-  useFocusEffect(useCallback(() => {
-    setTmdbInputKey(settingsStorage.getTmdbApiKey());
-  }, []));
   const [disableDrawer, setDisableDrawer] = useState(
     () => settingsStorage.getBool('disableDrawer') || false,
   );
@@ -314,8 +309,6 @@ const Preferences = ({navigation}: any) => {
               </View>
             </Surface>
           </View>
-          <TmdbApiKeyPreference draft={{inputKey: tmdbInputKey, setInputKey: setTmdbInputKey}} />
-
           <DownloadLocationPreference primary={colors.primary} />
 
           <DownloadConcurrencyPreference primary={colors.primary} />

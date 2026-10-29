@@ -17,9 +17,11 @@ import useHeroStore from '../../lib/zustand/herostore';
 import {syncFromSharedFolder} from '../../lib/sync/syncService';
 import {
   useHomePageData,
+  useTmdbHomeData,
   getRandomHeroPosts,
   clearHeroCache,
 } from '../../lib/hooks/useHomePageData';
+import useRemoteConfigStore from '../../lib/zustand/remoteConfigStore';
 import ProviderDrawer from '../../components/ProviderDrawer';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {HomeStackParamList} from '../../App';
@@ -101,18 +103,28 @@ const Home = ({}: Props) => {
   const installedProviders = useContentStore(state => state.installedProviders);
   const setHeroes = useHeroStore(state => state.setHeroes);
 
-  // React Query for home page data with better error handling
+  // With a TMDB key (set by the admin) Home is built from TMDB and does not
+  // depend on the selected provider. Without one it falls back to the
+  // provider's own catalogs.
+  const tmdbApiKey = useRemoteConfigStore(state => state.tmdbApiKey);
+  const tmdbMode = !!tmdbApiKey;
+  const hasProvider = !!(installedProviders?.length && provider?.value);
+  const providerHome = useHomePageData({
+    provider,
+    enabled: hasProvider && !tmdbMode,
+  });
+  const tmdbHome = useTmdbHomeData({
+    apiKey: tmdbApiKey,
+    enabled: hasProvider && tmdbMode,
+  });
   const {
     data: homeData = [],
     isLoading,
     catalog: skeletonCatalog,
     error,
     refetch,
-    // isStale,
-  } = useHomePageData({
-    provider,
-    enabled: !!(installedProviders?.length && provider?.value),
-  });
+  } = tmdbMode ? tmdbHome : providerHome;
+  const homeScope = tmdbMode ? 'tmdb' : provider?.value;
 
   useEffect(
     () => () => {
@@ -136,8 +148,13 @@ const Home = ({}: Props) => {
 
   // Heroes are kept per provider, so a refetch does not pick new ones.
   const heroPosts = useMemo(
-    () => getRandomHeroPosts(homeData, provider?.value),
-    [homeData, provider?.value],
+    () =>
+      getRandomHeroPosts(
+        // TMDB heroes come from the Trending row only.
+        tmdbMode ? homeData.slice(0, 1) : homeData,
+        homeScope,
+      ),
+    [homeData, homeScope, tmdbMode],
   );
 
   React.useEffect(() => {
@@ -157,7 +174,7 @@ const Home = ({}: Props) => {
     setManualRefreshing(true);
     const refresh = async () => {
       // Clear hero cache to get a new random hero on refresh
-      clearHeroCache(provider?.value);
+      clearHeroCache(homeScope);
       await Promise.race([
         Promise.allSettled([
           refetch(),
@@ -177,7 +194,7 @@ const Home = ({}: Props) => {
           setManualRefreshing(false);
         }, 50);
       });
-  }, [refetch, provider.value]);
+  }, [refetch, homeScope]);
 
   // Rows of the vertical list. The list mounts only the rows near the screen,
   // so opening Home no longer builds every catalog row and its posters at once.
@@ -185,24 +202,22 @@ const Home = ({}: Props) => {
     () =>
       isLoading
         ? skeletonCatalog.map((item, index) => ({
-            key: JSON.stringify([
-              provider.source?.author,
-              provider.value,
-              item.filter,
-              index,
-            ]),
+            key: JSON.stringify(
+              tmdbMode
+                ? ['tmdb', item.filter, index]
+                : [provider.source?.author, provider.value, item.filter, index],
+            ),
             isLoading: true,
             title: item.title,
             filter: item.filter,
             posts: EMPTY_POSTS,
           }))
         : homeData.map((item, index) => ({
-            key: JSON.stringify([
-              provider.source?.author,
-              provider.value,
-              item.filter,
-              index,
-            ]),
+            key: JSON.stringify(
+              tmdbMode
+                ? ['tmdb', item.filter, index]
+                : [provider.source?.author, provider.value, item.filter, index],
+            ),
             isLoading: !!item.isLoading,
             title: item.title,
             filter: item.filter,
@@ -215,12 +230,15 @@ const Home = ({}: Props) => {
       homeData,
       provider.value,
       provider.source?.author,
+      tmdbMode,
     ],
   );
 
-  const staged = useStagedHomeRows(rows, JSON.stringify([
-    provider.source?.author, provider.source?.url, provider.value, provider.version,
-  ]), !isTV, isFocused);
+  const staged = useStagedHomeRows(rows, tmdbMode
+    ? 'tmdb'
+    : JSON.stringify([
+        provider.source?.author, provider.source?.url, provider.value, provider.version,
+      ]), !isTV, isFocused);
   const providerValue = provider?.value;
   const renderRow = useCallback(
     ({item}: {item: HomeRow}) => (

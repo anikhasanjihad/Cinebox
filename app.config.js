@@ -9,6 +9,8 @@ const hasAndroidGoogleServices = fs.existsSync(
 const hasIosGooglePlist = fs.existsSync(
   path.resolve(__dirname, iosGoogleServicesFile),
 );
+// Set by the GitHub workflow (run number) so every release is newer than the last.
+const buildNumber = Number(process.env.APP_BUILD_NUMBER) || 1;
 const tmdbApiKey =
   process.env.TMDB_API_KEY || process.env.EXPO_PUBLIC_TMDB_API_KEY || '';
 const proxyApiUrl =
@@ -164,7 +166,7 @@ module.exports = () => {
           ? {googleServicesFile: androidGoogleServicesFile}
           : {}),
         package: PACKAGE_NAME,
-        versionCode: 1,
+        versionCode: buildNumber,
         permissions: [
           'FOREGROUND_SERVICE',
           'FOREGROUND_SERVICE_DATA_SYNC',
@@ -176,6 +178,8 @@ module.exports = () => {
           'WRITE_SETTINGS',
           'WAKE_LOCK',
           'POST_NOTIFICATIONS',
+          // Lets the in-app updater open Android's installer (not on Play Store).
+          ...(IS_PLAYSTORE ? [] : ['REQUEST_INSTALL_PACKAGES']),
         ],
         blockedPermissions: [
           // Casting uses WebRTC data channels, not microphone capture.
@@ -229,6 +233,7 @@ module.exports = () => {
         isPlayStore: IS_PLAYSTORE,
         isTV: IS_TV,
         tmdbApiKey,
+        buildNumber,
         proxyApiUrl,
       },
     },

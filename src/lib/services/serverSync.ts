@@ -15,7 +15,7 @@ import useContentStore from '../zustand/contentStore';
  * removes or disables a server.
  */
 const MANAGED_PREFIX = 'cinehub-';
-const managedAuthor = (id: string) => `${MANAGED_PREFIX}${id.replace(/-/g, '').slice(0, 10)}`;
+export const managedAuthor = (id: string) => `${MANAGED_PREFIX}${id.replace(/-/g, '').slice(0, 10)}`;
 
 export interface SyncResult {
   servers: number;
@@ -114,6 +114,10 @@ const run = async (): Promise<SyncResult> => {
       manifest = manifest.filter(p => !p.disabled);
       if (server.provider_value?.trim()) {
         manifest = manifest.filter(p => p.value === server.provider_value!.trim());
+      }
+      const hidden = new Set(server.hidden_providers ?? []);
+      if (hidden.size > 0) {
+        manifest = manifest.filter(p => !hidden.has(p.value));
       }
 
       const total = manifest.length;
