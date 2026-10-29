@@ -9,7 +9,6 @@ import {
   BackHandler,
   FlatList,
   Image,
-  Linking,
   RefreshControl,
   ToastAndroid,
   UIManager,
@@ -18,7 +17,6 @@ import {
 } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import {HomeStackParamList, TabStackParamList} from '../../App';
-import {isSafeExternalUrl} from '../../lib/sandbox/urlGuard';
 import Button from '../../components/ui/Button';
 import AppText from '../../components/ui/Text';
 import {QueryErrorBoundary} from '../../components/ErrorBoundary';
@@ -168,7 +166,6 @@ export default function Info({route, navigation}: Props): React.JSX.Element {
     [colors, imageAccent],
   );
 
-  const webUrl = info?.webUrl?.trim();
   const linkList = info?.linkList;
   const filteredLinkList = useMemo(() => {
     if (!linkList) {
@@ -252,23 +249,6 @@ export default function Info({route, navigation}: Props): React.JSX.Element {
       params: {filter: displayTitle},
     } as never);
   }, [displayTitle, searchNavigation]);
-
-  const handleOpenWeb = useCallback(() => {
-    if (!webUrl) {
-      return;
-    }
-    if (settingsStorage.isSkipInAppWebview()) {
-      if (!isSafeExternalUrl(webUrl)) {
-        ToastAndroid.show('Unsupported link', ToastAndroid.SHORT);
-        return;
-      }
-      Linking.openURL(webUrl).catch(() => {
-        ToastAndroid.show('Failed to open browser', ToastAndroid.SHORT);
-      });
-    } else {
-      navigation.navigate('Webview', {link: webUrl});
-    }
-  }, [navigation, webUrl]);
 
   if (error && !info) {
     return (
@@ -373,7 +353,6 @@ export default function Info({route, navigation}: Props): React.JSX.Element {
                       : undefined
                   }
                   exploreRef={exploreRef}
-                  onOpenWeb={webUrl ? handleOpenWeb : undefined}
                   onSearchTitle={searchTitle}
                   onToggleLibrary={toggleLibrary}
                   onToggleSynopsis={() => setReadMore(value => !value)}

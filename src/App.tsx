@@ -774,8 +774,6 @@ const App = () => {
               )}
               {/* Global WAF / captcha solving dialog, triggered by providers via
                 providerContext.openWebView */}
-              <VerificationConsentDialog />
-              <WafWebViewDialog />
               <RemoteVolumeToast />
               {/* Isolated realm that runs untrusted provider code. Must stay
                 mounted for the app lifetime: every provider call is dispatched

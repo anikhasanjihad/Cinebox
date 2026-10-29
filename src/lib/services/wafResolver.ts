@@ -50,6 +50,9 @@ import {
  * provider's source author), never another author's.
  */
 // Pending dialogs, keyed by provider author and hostname.
+// Provider websites must never open inside the app.
+const BLOCK_PROVIDER_WINDOWS = true as boolean;
+
 const pendingRequests: Record<string, Promise<OpenWebViewResult>> = {};
 
 const trackScope = (promise: Promise<OpenWebViewResult>, scope?: AbortSignal) => {
@@ -134,6 +137,10 @@ export const openWebView = (
         };
       }
     }
+
+    // Provider websites are never opened inside the app: no consent prompt,
+    // no verification window. Providers just fail over to their normal flow.
+    if (BLOCK_PROVIDER_WINDOWS) throw wafCancelledError();
 
     // Background work fails rather than opening a dialog; a solved cookie
     // above can still be reused.
