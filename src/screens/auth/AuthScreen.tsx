@@ -35,7 +35,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import PosterWall from './PosterWall';
 import AuthInput, {RED} from './AuthInput';
 import OtpInput from './OtpInput';
-import CinematicIntro, {INTRO_MS} from './CinematicIntro';
+import {introDelayFor} from './CinematicIntro';
 import {TVFocusable} from '../../components/tv';
 import {isTV} from '../../lib/tv';
 import useAuthStore from '../../lib/zustand/authStore';
@@ -52,9 +52,6 @@ const TITLES: Record<Mode, string> = {
   reset: 'Check Your Email',
   done: 'All Set',
 };
-
-// The opening animation plays once per app launch, not on every sign-out.
-let introPlayed = false;
 
 const maskEmail = (email: string) => {
   const [name, domain] = email.trim().split('@');
@@ -344,27 +341,14 @@ const AuthScreen = () => {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const [playIntro] = useState(() => {
-    const first = !introPlayed;
-    introPlayed = true;
-    return first;
-  });
-  const [introVisible, setIntroVisible] = useState(playIntro);
-  // everything below waits for the intro to hand over
-  const base = playIntro ? 2500 : 0;
+  // The opening animation is an app-level overlay; on a cold start the form
+  // waits for it to hand over, after a sign-out there is nothing to wait for.
+  const [base] = useState(() => introDelayFor(2500));
 
   const emailRef = useRef<TextInput>(null);
   const passRef = useRef<TextInput>(null);
   const codeRef = useRef<TextInput>(null);
   const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (!playIntro) {
-      return;
-    }
-    const t = setTimeout(() => setIntroVisible(false), INTRO_MS);
-    return () => clearTimeout(t);
-  }, [playIntro]);
 
   useEffect(
     () => () => {
@@ -811,8 +795,6 @@ const AuthScreen = () => {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-
-      {introVisible && <CinematicIntro />}
     </View>
   );
 };

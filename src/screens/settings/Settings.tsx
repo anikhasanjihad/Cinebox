@@ -127,6 +127,7 @@ import {
 import RenderProviderFlagIcon from '../../components/RenderProviderFLagIcon';
 import useNavigationPreferencesStore from '../../lib/zustand/navigationPreferencesStore';
 import useAuthStore from '../../lib/zustand/authStore';
+import usePartyStore from '../../lib/watchParty/watchParty';
 import DnsPreference from './components/DnsPreference';
 import SettingsRow from '../../components/ui/SettingsRow';
 import SettingsSection from '../../components/ui/SettingsSection';
@@ -151,6 +152,7 @@ const Settings = ({navigation}: Props) => {
   const profile = useAuthStore(state => state.profile);
   const authUser = useAuthStore(state => state.user);
   const isAdmin = useAuthStore(state => state.isAdmin);
+  const partyCode = usePartyStore(state => state.code);
   const tabNavigation =
     useNavigation<NativeStackNavigationProp<TabStackParamList>>();
   const colors = useM3Colors();
@@ -418,6 +420,20 @@ const Settings = ({navigation}: Props) => {
 
             {/* Main options section */}
             <AnimatedSection delay={200}>
+              <SettingsSection title="Together">
+                <SettingsRow
+                  title="Watch Together"
+                  description={
+                    partyCode
+                      ? `In room ${partyCode}`
+                      : 'Watch with family and friends in sync'
+                  }
+                  icon="account-group-outline"
+                  divider={false}
+                  onPress={() => navigation.navigate('WatchTogether')}
+                />
+              </SettingsSection>
+
               <SettingsSection title="Options">
                 <SettingsRow
                   title="Appearance"

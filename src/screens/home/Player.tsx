@@ -54,6 +54,8 @@ import Orientation, {
 } from 'react-native-orientation-locker';
 import {SystemBars} from 'react-native-edge-to-edge';
 import VideoPlayer from '../../components/media-console';
+import PartyOverlay from '../../components/PartyOverlay';
+import useWatchPartySync from '../../lib/watchParty/useWatchPartySync';
 import {playPauseRef} from '../../components/media-console/components/PlayPause/PlayPause';
 import {Back} from '../../components/media-console/components/Back';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
@@ -1155,6 +1157,19 @@ const Player = ({route}: Props): React.JSX.Element => {
     });
 
   const [isPaused, setIsPaused] = useState(false);
+
+  // Watch Together: keeps play / pause / seek in step with the room (no-op
+  // when this device is not in one).
+  const party = useWatchPartySync({
+    playerRef: playerRef as any,
+    videoPositionRef,
+    isTV,
+    setTvPaused: setIsPaused,
+    params: route.params,
+    activeEpisodeLink: activeEpisode?.link,
+  });
+  const partyLoadedRef = useRef(party.onLoaded);
+  partyLoadedRef.current = party.onLoaded;
   const [autoNextVisible, setAutoNextVisible] = useState(false);
   const showSleepTimer = !hiddenControls.includes('sleep');
   const {
@@ -2968,6 +2983,7 @@ const Player = ({route}: Props): React.JSX.Element => {
 
   const handleVideoLoadCallback = useCallback(
     (e: any) => {
+      partyLoadedRef.current();
       const decoderRestart = decoderRestartRef.current;
       decoderRestartRef.current = false;
       refreshDecoderStatus();
@@ -3125,7 +3141,12 @@ const Player = ({route}: Props): React.JSX.Element => {
         isTV || isPlayerLocked || showSettings || showEpisodeSidebar,
       onSeekSnap: handleSeekSnap,
       onEnd: handleVideoEnd,
-      onSeek: handleVideoSeek,
+      onSeek: (e: any) => {
+        handleVideoSeek(e);
+        party.onSeek(e);
+      },
+      onPause: party.onPause,
+      onPlay: party.onPlay,
       ...(isTV
         ? {
             paused: isPaused,
@@ -3144,6 +3165,9 @@ const Player = ({route}: Props): React.JSX.Element => {
       handleProgressWithTime,
       combinedSkips,
       handleVideoLoadCallback,
+      party.onSeek,
+      party.onPause,
+      party.onPlay,
       playbackRate,
       subtitleDelayMs,
       subtitleStyle,
@@ -3598,6 +3622,7 @@ const Player = ({route}: Props): React.JSX.Element => {
       }}
       className="bg-black flex-1 relative">
       <SystemBars hidden={!isRemoteActive && isFullScreen} />
+      <PartyOverlay />
       <StatusBar translucent={true} hidden={!isRemoteActive} />
       {isRemoteActive ? (
         <OrientationLocker orientation={PORTRAIT} />

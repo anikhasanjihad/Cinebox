@@ -1,5 +1,5 @@
-import React, {useEffect, useMemo} from 'react';
-import {View, StyleSheet, useWindowDimensions} from 'react-native';
+import React, {useEffect, useMemo, useState} from 'react';
+import {Image, View, StyleSheet, useWindowDimensions} from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -9,6 +9,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import LinearGradient from 'react-native-linear-gradient';
 import {isTV} from '../../lib/tv';
+import {
+  getCachedLoginPosters,
+  refreshLoginPosters,
+} from '../../lib/loginPosters';
 
 // Abstract "poster wall" that slowly drifts like Netflix's sign-in backdrop.
 // Pure gradients, so it needs no network and no image assets.
@@ -29,9 +33,10 @@ interface ColumnProps {
   tileW: number;
   tileH: number;
   tiles: number;
+  posters: string[];
 }
 
-const Column = React.memo(({index, tileW, tileH, tiles}: ColumnProps) => {
+const Column = React.memo(({index, tileW, tileH, tiles, posters}: ColumnProps) => {
   const setHeight = tiles * (tileH + GAP);
   const y = useSharedValue(index % 2 === 0 ? 0 : -setHeight);
 
@@ -55,6 +60,28 @@ const Column = React.memo(({index, tileW, tileH, tiles}: ColumnProps) => {
     for (let round = 0; round < 2; round += 1) {
       for (let i = 0; i < tiles; i += 1) {
         const colors = PALETTE[(index * 3 + i * 5) % PALETTE.length];
+        if (posters.length > 0) {
+          const uri = posters[(index * 7 + i * 3) % posters.length];
+          out.push(
+            <View
+              key={`${round}-${i}`}
+              style={{
+                width: tileW,
+                height: tileH,
+                borderRadius: 10,
+                marginBottom: GAP,
+                overflow: 'hidden',
+                backgroundColor: colors[0],
+              }}>
+              <Image
+                source={{uri}}
+                resizeMode="cover"
+                style={{width: tileW, height: tileH}}
+              />
+            </View>,
+          );
+          continue;
+        }
         out.push(
           <LinearGradient
             key={`${round}-${i}`}
@@ -72,7 +99,7 @@ const Column = React.memo(({index, tileW, tileH, tiles}: ColumnProps) => {
       }
     }
     return out;
-  }, [index, tiles, tileW, tileH]);
+  }, [index, tiles, tileW, tileH, posters]);
 
   return (
     <Animated.View style={[{width: tileW, marginRight: GAP}, style]}>
@@ -83,6 +110,21 @@ const Column = React.memo(({index, tileW, tileH, tiles}: ColumnProps) => {
 
 const PosterWall = () => {
   const {width, height} = useWindowDimensions();
+  const [posters, setPosters] = useState<string[]>(() => getCachedLoginPosters());
+
+  useEffect(() => {
+    let alive = true;
+    refreshLoginPosters().then(urls => {
+      if (alive && urls.length && urls.join() !== posters.join()) {
+        setPosters(urls);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const tileW = isTV ? 210 : 116;
   const tileH = Math.round(tileW * 1.5);
   const diagonal = Math.sqrt(width * width + height * height);
@@ -100,16 +142,23 @@ const PosterWall = () => {
           top: (height - diagonal) / 2,
           flexDirection: 'row',
           overflow: 'hidden',
-          opacity: 0.55,
+          opacity: posters.length ? 0.8 : 0.55,
           transform: [{rotate: '-14deg'}],
         }}>
         {Array.from({length: columns}).map((_, i) => (
-          <Column key={i} index={i} tileW={tileW} tileH={tileH} tiles={tiles} />
+          <Column
+            key={i}
+            index={i}
+            tileW={tileW}
+            tileH={tileH}
+            tiles={tiles}
+            posters={posters}
+          />
         ))}
       </View>
       {/* vignette: keeps the form readable and gives the Netflix fade-to-black */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.92)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.92)']}
+        colors={['rgba(0,0,0,0.9)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.92)']}
         locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFill}
       />

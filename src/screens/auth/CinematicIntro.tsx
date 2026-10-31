@@ -18,6 +18,11 @@ const TITLE = 'CINEHUB';
 /** Total time the intro stays on screen before handing over to the form. */
 export const INTRO_MS = 3300;
 
+const APP_START = Date.now();
+/** How much of `ms` is still ahead, counted from app launch (0 after logout). */
+export const introDelayFor = (ms: number): number =>
+  Math.max(0, ms - (Date.now() - APP_START));
+
 const Letter = ({ch, index, size}: {ch: string; index: number; size: number}) => {
   const p = useSharedValue(0);
   useEffect(() => {
@@ -123,7 +128,7 @@ const CinematicIntro = () => {
 
   return (
     <Animated.View
-      pointerEvents="none"
+      pointerEvents="auto"
       style={[StyleSheet.absoluteFill, {backgroundColor: '#000', zIndex: 50}, wrap]}>
       <Animated.View
         style={[StyleSheet.absoluteFill, {backgroundColor: RED}, flashStyle]}

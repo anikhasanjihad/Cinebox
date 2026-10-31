@@ -89,6 +89,10 @@ import {
 } from './lib/sync/syncService';
 import StreamingTabBar from './components/navigation/StreamingTabBar';
 import LiveTv from './screens/livetv/LiveTv';
+import WatchTogether from './screens/party/WatchTogether';
+import usePartyStore from './lib/watchParty/watchParty';
+import CinematicIntro, {INTRO_MS} from './screens/auth/CinematicIntro';
+import {refreshLoginPosters} from './lib/loginPosters';
 import AppDialogHost from './components/AppDialogHost';
 import {RemoteVolumeToast} from './components/remote-player/RemoteVolumeToast';
 import {
@@ -170,6 +174,7 @@ export type WatchListStackParamList = {
 
 export type SettingsStackParamList = {
   Settings: undefined;
+  WatchTogether: undefined;
   Appearance: undefined;
   DisableProviders: undefined;
   About: undefined;
@@ -454,6 +459,11 @@ function SettingsStackScreen() {
         component={Preferences}
         options={subpageOptions}
       />
+      <SettingsStack.Screen
+        name="WatchTogether"
+        component={WatchTogether}
+        options={subpageOptions}
+      />
       <SettingsStack.Screen name="Profile" component={Profile} />
       <SettingsStack.Screen name="AdminPanel" component={AdminPanel} />
       <SettingsStack.Screen
@@ -689,18 +699,57 @@ const App = () => {
 
   // --- CineHub account + admin-managed servers -------------------------
   const authStatus = useAuthStore(state => state.status);
+  // Opening animation: plays on every app launch, signed in or not.
+  const [introVisible, setIntroVisible] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setIntroVisible(false), INTRO_MS);
+    return () => clearTimeout(t);
+  }, []);
   useEffect(() => {
     void useAuthStore.getState().init();
   }, []);
+
+  // Watch Together: guests open whatever the host is playing; leaving the app
+  // account (sign-out) leaves the room.
+  const partyCode = usePartyStore(state => state.code);
+  const partyIsHost = usePartyStore(state => state.isHost);
+  const partyContent = usePartyStore(state => state.content);
+  useEffect(() => {
+    if (!partyCode || partyIsHost || !partyContent || !navigationRef.isReady()) {
+      return;
+    }
+    const current = navigationRef.getCurrentRoute();
+    const wanted = partyContent.params;
+    const currentParams = current?.params as
+      | {episodeList?: Array<{link?: string}>; linkIndex?: number; primaryTitle?: string}
+      | undefined;
+    if (
+      current?.name === 'Player' &&
+      currentParams?.primaryTitle === wanted.primaryTitle &&
+      currentParams?.episodeList?.[currentParams.linkIndex ?? 0]?.link ===
+        wanted.episodeList?.[wanted.linkIndex]?.link
+    ) {
+      return;
+    }
+    navigationRef.dispatch({
+      type: current?.name === 'Player' ? 'REPLACE' : 'PUSH',
+      payload: {name: 'Player', params: wanted},
+    });
+  }, [partyCode, partyIsHost, partyContent]);
+  useEffect(() => {
+    if (authStatus !== 'signedIn' && usePartyStore.getState().code) {
+      void usePartyStore.getState().leaveRoom();
+    }
+  }, [authStatus]);
 
   useEffect(() => {
     if (authStatus !== 'signedIn') {
       return;
     }
     const sync = () => {
-      syncRemoteConfig().catch(error =>
-        console.warn('[CineHub] Config sync failed:', error),
-      );
+      syncRemoteConfig()
+        .then(() => refreshLoginPosters())
+        .catch(error => console.warn('[CineHub] Config sync failed:', error));
       return syncServers().catch(error =>
         console.warn('[CineHub] Server sync failed:', error),
       );
@@ -794,6 +843,7 @@ const App = () => {
                 mounted for the app lifetime: every provider call is dispatched
                 into it. */}
               <ProviderSandboxHost />
+              {introVisible && <CinematicIntro />}
             </GestureHandlerRootView>
           </QueryClientProvider>
         </GlobalErrorBoundary>
