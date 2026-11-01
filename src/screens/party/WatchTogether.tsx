@@ -242,16 +242,40 @@ const WatchTogether = ({navigation}: Props) => {
             <AppText role="labelLarge" style={{color: colors.onSurfaceVariant}}>
               {status === 'connected' ? 'ROOM CODE' : 'CONNECTING…'}
             </AppText>
-            <AppText
+            <View
               style={{
-                color: colors.onSurface,
-                fontSize: 40,
-                fontWeight: '900',
-                letterSpacing: 10,
-                marginVertical: 6,
+                flexDirection: 'row',
+                gap: 8,
+                marginVertical: 12,
+                width: '100%',
+                justifyContent: 'center',
               }}>
-              {code}
-            </AppText>
+              {code.split('').map((ch, i) => (
+                <View
+                  key={i}
+                  style={{
+                    flex: 1,
+                    maxWidth: 52,
+                    aspectRatio: 0.8,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surfaceContainer,
+                    borderColor: colors.outlineVariant,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                  }}>
+                  <AppText
+                    style={{
+                      color: colors.onSurface,
+                      fontSize: 28,
+                      fontWeight: '900',
+                      includeFontPadding: false,
+                    }}>
+                    {ch}
+                  </AppText>
+                </View>
+              ))}
+            </View>
             <View style={{flexDirection: 'row', gap: 10, marginTop: 6}}>
               {button('Share code', share, {icon: 'share-variant'})}
             </View>
