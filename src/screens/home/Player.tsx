@@ -1168,6 +1168,15 @@ const Player = ({route}: Props): React.JSX.Element => {
     params: route.params,
     activeEpisodeLink: activeEpisode?.link,
   });
+  // The first 5 seconds of every video (not Live TV) play without sound. It is
+  // driven by the playback position, so seeking back to the start mutes again,
+  // and there is no way for the viewer to override it.
+  const INTRO_MUTE_SECONDS = 5;
+  const isLiveStream = !!route.params.externalVideo?.live;
+  const [introMuted, setIntroMuted] = useState(true);
+  useEffect(() => {
+    setIntroMuted(true);
+  }, [activeEpisode?.link]);
   const partyLoadedRef = useRef(party.onLoaded);
   partyLoadedRef.current = party.onLoaded;
   const [autoNextVisible, setAutoNextVisible] = useState(false);
@@ -1265,6 +1274,10 @@ const Player = ({route}: Props): React.JSX.Element => {
 
   const handleProgressWithTime = useCallback(
     (e: {currentTime: number; seekableDuration: number}) => {
+      setIntroMuted(prev => {
+        const next = e.currentTime < INTRO_MUTE_SECONDS;
+        return prev === next ? prev : next;
+      });
       handleProgress(e);
       checkSleepTimer();
       prefetchNextEpisode(e.currentTime, e.seekableDuration);
@@ -3143,10 +3156,14 @@ const Player = ({route}: Props): React.JSX.Element => {
       onEnd: handleVideoEnd,
       onSeek: (e: any) => {
         handleVideoSeek(e);
+        if ((e.seekTime ?? e.currentTime ?? 0) < INTRO_MUTE_SECONDS) {
+          setIntroMuted(true);
+        }
         party.onSeek(e);
       },
       onPause: party.onPause,
       onPlay: party.onPlay,
+      muted: introMuted && !isLiveStream,
       ...(isTV
         ? {
             paused: isPaused,
@@ -3168,6 +3185,8 @@ const Player = ({route}: Props): React.JSX.Element => {
       party.onSeek,
       party.onPause,
       party.onPlay,
+      introMuted,
+      isLiveStream,
       playbackRate,
       subtitleDelayMs,
       subtitleStyle,
