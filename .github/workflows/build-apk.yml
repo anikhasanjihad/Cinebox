@@ -97,7 +97,25 @@ jobs:
           cd android
           ./gradlew :app:assembleRelease --build-cache --no-daemon --max-workers=2 --console=plain --stacktrace \
             '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
-            -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a
+            -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
+
+      # Guard against the "installs but freezes on open" bug: a 32-bit-only
+      # phone (e.g. Galaxy A13) loads lib/armeabi-v7a, so every core React
+      # Native library present for arm64 must be present for armeabi-v7a too.
+      - name: Verify APK ships both ABIs
+        run: |
+          set -euo pipefail
+          APK="$(find android/app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -n 1)"
+          unzip -Z1 "$APK" > "$RUNNER_TEMP/apk-files.txt"
+          missing=0
+          for lib in $(grep -E '^lib/arm64-v8a/(libreactnative|libhermes[a-z_]*|libjsi|libfbjni|libappmodules|libreact_featureflagsjni)\.so$' "$RUNNER_TEMP/apk-files.txt" | sed 's#lib/arm64-v8a/##'); do
+            if ! grep -qx "lib/armeabi-v7a/$lib" "$RUNNER_TEMP/apk-files.txt"; then
+              echo "::error::$lib is missing for armeabi-v7a (32-bit phones will freeze on launch)"
+              missing=1
+            fi
+          done
+          grep -q '^lib/armeabi-v7a/' "$RUNNER_TEMP/apk-files.txt" || { echo "::error::No armeabi-v7a libs in APK"; missing=1; }
+          exit $missing
 
       - name: Collect APK
         run: |
