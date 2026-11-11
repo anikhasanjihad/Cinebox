@@ -218,7 +218,17 @@ allprojects {
       contents = contents.replace(
         /dependencies\s*\{/,
         match =>
-          `${match}\n    implementation 'org.libtorrent4j:libtorrent4j:2.1.0-39'\n    implementation 'org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-39'\n`,
+          `${match}\n    implementation 'org.libtorrent4j:libtorrent4j:2.1.0-39'\n    implementation 'org.libtorrent4j:libtorrent4j-android-arm:2.1.0-39'\n    implementation 'org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-39'\n`,
+      );
+    }
+
+    // 32-bit-only phones (e.g. Galaxy A13) need the armeabi-v7a native library,
+    // also when an older prebuild already has the arm64 line.
+    if (!contents.includes('libtorrent4j-android-arm:')) {
+      contents = contents.replace(
+        /dependencies\s*\{/,
+        match =>
+          `${match}\n    implementation 'org.libtorrent4j:libtorrent4j-android-arm:2.1.0-39'\n`,
       );
     }
 
