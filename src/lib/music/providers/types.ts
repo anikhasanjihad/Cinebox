@@ -26,6 +26,8 @@ export interface MusicProvider {
   search(query: string, signal?: AbortSignal): Promise<MusicTrack[]>;
   suggestions?(query: string, signal?: AbortSignal): Promise<string[]>;
   resolveStream(track: MusicTrack, signal?: AbortSignal): Promise<ResolvedStream>;
+  /** Turns a pasted link of this provider into one track; null if it is not its link. */
+  resolveLink?(url: string, signal?: AbortSignal): Promise<MusicTrack | null>;
   /** Forget a cached stream, e.g. after playback failed because the link expired. */
   invalidate?(track: MusicTrack): void;
 }

@@ -1,6 +1,8 @@
 import type {MusicProvider} from '../types';
+import {parseMusicLink} from '../links';
 import {
   invalidateYoutubeStream,
+  lookupVideo,
   resolveYoutubeStream,
   searchSongs,
   searchSuggestions,
@@ -19,6 +21,10 @@ const youtubeMusicProvider: MusicProvider = {
       return Promise.reject(new Error('Track has no YouTube id'));
     }
     return resolveYoutubeStream(track.provider_id, signal);
+  },
+  resolveLink: async (url, signal) => {
+    const link = parseMusicLink(url);
+    return link?.kind === 'youtube' ? lookupVideo(link.videoId, signal) : null;
   },
   invalidate: track => {
     if (track.provider_id) {

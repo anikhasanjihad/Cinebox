@@ -11,7 +11,9 @@ import {
   parseSuggestions,
   pickAudioFormat,
   readVisitorData,
+  upscaleCover,
   urlExpiryMs,
+  YTM_PROVIDER_ID,
 } from './parse';
 import type {MusicTrack} from '../../types';
 import type {ResolvedStream} from '../types';
@@ -136,6 +138,44 @@ const askPlayer = (
     },
     signal,
   );
+
+/** Title, artist and cover for one video id (used when a link is pasted). */
+export const lookupVideo = async (
+  videoId: string,
+  signal?: AbortSignal,
+): Promise<MusicTrack> => {
+  let lastError: unknown;
+  for (const client of PLAYER_CLIENTS) {
+    try {
+      const json = await askPlayer(client, videoId, signal);
+      visitorData = readVisitorData(json) ?? visitorData;
+      const d = json?.videoDetails;
+      if (!d?.videoId) {
+        continue;
+      }
+      const thumbs = d.thumbnail?.thumbnails as Array<{url: string}> | undefined;
+      const cover = thumbs?.length ? thumbs[thumbs.length - 1].url : null;
+      return {
+        id: `${YTM_PROVIDER_ID}:${d.videoId}`,
+        title: String(d.title ?? 'Untitled'),
+        artist: String(d.author ?? '').replace(/ - Topic$/, ''),
+        album: '',
+        audio_path: '',
+        audio_url: '',
+        cover_url: cover ? upscaleCover(cover) : null,
+        duration_ms: d.lengthSeconds ? Number(d.lengthSeconds) * 1000 : null,
+        provider: YTM_PROVIDER_ID,
+        provider_id: d.videoId,
+      };
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw new MusicProviderError(
+    'unavailable',
+    lastError instanceof Error ? lastError.message : 'Could not read this link',
+  );
+};
 
 const cache = new Map<string, ResolvedStream>();
 const inflight = new Map<string, Promise<ResolvedStream>>();

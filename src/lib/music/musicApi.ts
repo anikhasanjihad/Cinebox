@@ -119,3 +119,56 @@ export const deleteMusicTrack = async (track: MusicTrack): Promise<void> => {
       .catch(() => {});
   }
 };
+
+export interface NewLinkInput {
+  /** A track resolved from a YouTube link, or null for a direct audio URL. */
+  resolved: MusicTrack | null;
+  /** Direct audio URL (used when `resolved` is null). */
+  url?: string;
+  title: string;
+  artist: string;
+  album: string;
+}
+
+/**
+ * Admin only. Saves a link instead of a file: YouTube links keep only the
+ * video id (the stream is resolved at play time), direct URLs are stored as is.
+ * Needs supabase/music_links.sql.
+ */
+export const addMusicLink = async (
+  input: NewLinkInput,
+): Promise<MusicTrack> => {
+  const r = input.resolved;
+  const row: Record<string, unknown> = r
+    ? {
+        title: input.title.trim() || r.title,
+        artist: input.artist.trim() || r.artist,
+        album: input.album.trim(),
+        audio_path: null,
+        audio_url: '',
+        cover_url: r.cover_url ?? null,
+        duration_ms: r.duration_ms ?? null,
+        provider: r.provider,
+        provider_id: r.provider_id,
+      }
+    : {
+        title: input.title.trim() || 'Untitled',
+        artist: input.artist.trim(),
+        album: input.album.trim(),
+        audio_path: null,
+        audio_url: input.url ?? '',
+      };
+  const {data, error} = await supabase
+    .from('music_tracks')
+    .insert(row)
+    .select('*')
+    .single();
+  if (error) {
+    throw new Error(
+      /provider|audio_path/i.test(error.message)
+        ? `${error.message}. Run supabase/music_links.sql in the Supabase SQL Editor once.`
+        : error.message,
+    );
+  }
+  return data as MusicTrack;
+};

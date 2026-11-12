@@ -1,7 +1,8 @@
 import {create} from 'zustand';
 import {AppState} from 'react-native';
 import type {Session, User} from '@supabase/supabase-js';
-import {supabase, CineHubProfile} from '../supabase';
+import {supabase, SUPABASE_URL, CineHubProfile} from '../supabase';
+import {mainStorage} from '../storage/StorageService';
 
 type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 
@@ -113,6 +114,24 @@ const useAuthStore = create<AuthState>((set, get) => ({
       });
     };
 
+    // Fast path: a stored session is shown at once. getSession() below may need
+    // the network to refresh an expired token, which used to hold the app on the
+    // loading screen for seconds. If the refresh fails, onAuthStateChange signs
+    // the user out exactly as before.
+    let showedCached = false;
+    try {
+      const host = new URL(SUPABASE_URL).hostname.split('.')[0];
+      const raw = mainStorage.getString(`sb-session:sb-${host}-auth-token`);
+      const cached = raw ? (JSON.parse(raw) as Session | null) : null;
+      if (cached?.user && cached.refresh_token) {
+        showedCached = true;
+        apply(cached);
+        void get().refreshProfile();
+      }
+    } catch {
+      showedCached = false;
+    }
+
     try {
       // FIX: Wrap getSession() with a hard timeout so a stalled network call
       // (common on MIUI / OneUI with background battery optimisation, or on
@@ -124,14 +143,19 @@ const useAuthStore = create<AuthState>((set, get) => ({
         AUTH_INIT_TIMEOUT_MS,
         {data: {session: null}, error: new Error('auth-init-timeout')},
       );
-      apply(result.data.session);
-      if (result.data.session) {
+      // After a cached start, a timeout must not sign the user out.
+      if (!(showedCached && result.error?.message === 'auth-init-timeout')) {
+        apply(result.data.session);
+      }
+      if (result.data.session && !showedCached) {
         // refreshProfile is non-blocking — do not await it here so it cannot
         // extend the loading phase.
         void get().refreshProfile();
       }
     } catch {
-      apply(null);
+      if (!showedCached) {
+        apply(null);
+      }
     }
 
     supabase.auth.onAuthStateChange((_event, session) => {

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useState} from 'react';
 import type {MusicTrack} from '../types';
 import type {MusicProvider} from './types';
+import {parseMusicLink} from './links';
 
 const DEBOUNCE_MS = 450;
 const SUGGEST_MS = 220;
@@ -58,8 +59,14 @@ export const useProviderSearch = (
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    provider
-      .search(committed, controller.signal)
+    // A pasted link opens that one track instead of running a text search.
+    const job: Promise<MusicTrack[]> =
+      provider.resolveLink && parseMusicLink(committed)
+        ? provider
+            .resolveLink(committed, controller.signal)
+            .then(track => (track ? [track] : []))
+        : provider.search(committed, controller.signal);
+    job
       .then(result => {
         if (!controller.signal.aborted) {
           setTracks(result);

@@ -1,11 +1,12 @@
 import {NavigationContext} from '@react-navigation/native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
-import {Image, Pressable, TouchableOpacity, View} from 'react-native';
+import {Image, Pressable, View} from 'react-native';
 import Animated from 'react-native-reanimated';
 import {BlurView} from 'expo-blur';
 import {useM3Colors} from '../theme/M3PaletteContext';
 import AppText from './ui/Text';
+import PressableScale from './ui/PressableScale';
 import {isTV} from '../lib/tv/constants';
 import {useTVFocusBorderColor} from '../lib/tv/useTVFocusBorderColor';
 import {useTVRemote} from '../lib/tv/useTVRemote';
@@ -75,19 +76,20 @@ interface MediaPosterCardProps {
 // TV boxes have little GPU headroom, and a row of cards entering at once
 // competes with D-pad focus animations. Cards appear without a transition there.
 
-// Native opacity feedback avoids rerendering poster contents on every phone press.
+// iOS-style press: the poster springs down under the finger and back on
+// release. Runs on the native driver, so nothing re-renders on press. The ref
+// is only needed for TV focus memory, which uses the Pressable branch below.
 const MobilePosterTouchable = React.forwardRef<
   View,
   React.ComponentProps<typeof Pressable>
->(({style, children, delayLongPress, ...props}, ref) => (
-  <TouchableOpacity
-    {...(props as React.ComponentProps<typeof TouchableOpacity>)}
+>(({style, children, delayLongPress, ...props}, _ref) => (
+  <PressableScale
+    {...props}
+    pressedScale={0.95}
     delayLongPress={delayLongPress ?? undefined}
-    ref={ref as any}
-    activeOpacity={0.65}
     style={typeof style === 'function' ? style({pressed: false, focused: false}) : style}>
-    {typeof children === 'function' ? children({pressed: false, focused: false}) : children}
-  </TouchableOpacity>
+    {children}
+  </PressableScale>
 ));
 const PosterTouchable = isTV ? Pressable : MobilePosterTouchable;
 

@@ -47,7 +47,13 @@ import PlayerSettings from './screens/settings/PlayerSettings';
 import PlayerControlSettings from './screens/settings/PlayerControlSettings';
 import Appearance from './screens/settings/Appearance';
 import {M3ThemeProvider} from './theme/M3ThemeProvider';
-import {AppState, Linking, LogBox, useWindowDimensions} from 'react-native';
+import {
+  AppState,
+  InteractionManager,
+  Linking,
+  LogBox,
+  useWindowDimensions,
+} from 'react-native';
 import {cinehubCastService} from './lib/remote/cinehubCastService';
 import {EpisodeLink, Stream} from './lib/providers/types';
 import {
@@ -609,7 +615,13 @@ const App = () => {
 
   useEffect(() => {
     const timer = setTimeout(hideSplash, BOOTSPLASH_MAX_WAIT_MS);
-    return () => clearTimeout(timer);
+    // JS has rendered the logo placeholder / intro by now, so the native splash
+    // can go on the next frame instead of waiting for auth + navigation.
+    const frame = requestAnimationFrame(hideSplash);
+    return () => {
+      clearTimeout(timer);
+      cancelAnimationFrame(frame);
+    };
   }, [hideSplash]);
 
   // Reconcile downloads once the store hydrates, then start shared folder sync.
@@ -620,9 +632,13 @@ const App = () => {
         return;
       }
       reconciled = true;
-      reconcileDownloadState()
-        .then(() => initializeSyncService())
-        .catch(error => console.error('Download startup failed:', error));
+      // Not needed for the first screen: run once the launch animations and
+      // first interactions are finished.
+      InteractionManager.runAfterInteractions(() => {
+        reconcileDownloadState()
+          .then(() => initializeSyncService())
+          .catch(error => console.error('Download startup failed:', error));
+      });
     };
 
     if (useDownloadsStore.persist.hasHydrated()) {
@@ -801,7 +817,9 @@ const App = () => {
         console.warn('[CineHub] Server sync failed:', error),
       );
     };
-    void checkForUpdateOnStartup();
+    InteractionManager.runAfterInteractions(() => {
+      void checkForUpdateOnStartup();
+    });
     void sync();
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {

@@ -19,12 +19,15 @@ import useAuthStore from '../../lib/zustand/authStore';
 import {showAppDialog} from '../../lib/zustand/appDialogStore';
 import useMusicStore from '../../lib/zustand/musicStore';
 import {
+  addMusicLink,
   addMusicTrack,
   deleteMusicTrack,
   type PickedFile,
 } from '../../lib/music/musicApi';
 import {removeOfflineTrack} from '../../lib/music/musicOffline';
 import type {MusicTrack} from '../../lib/music/types';
+import {parseMusicLink, titleFromUrl} from '../../lib/music/providers/links';
+import {MUSIC_PROVIDERS} from '../../lib/music/providers/registry';
 import {Badge, Group, InputRow, IOS, Row, Sheet} from './AdminPanel';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'MusicAdmin'>;
@@ -65,6 +68,9 @@ const MusicAdmin = ({navigation}: Props) => {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkText, setLinkText] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -78,15 +84,17 @@ const MusicAdmin = ({navigation}: Props) => {
         return;
       }
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (open && !busy) {
+        if (linkOpen && !linkBusy) {
+          setLinkOpen(false);
+        } else if (open && !busy) {
           setOpen(false);
-        } else if (!open) {
+        } else if (!open && !linkOpen) {
           navigation.goBack();
         }
         return true;
       });
       return () => sub.remove();
-    }, [navigation, open, busy]),
+    }, [navigation, open, busy, linkOpen, linkBusy]),
   );
 
   const reset = () => {
@@ -172,6 +180,66 @@ const MusicAdmin = ({navigation}: Props) => {
     );
     reset();
     setOpen(false);
+  };
+
+  const saveLinks = async () => {
+    const lines = linkText
+      .split(/\s+/)
+      .map(l => l.trim())
+      .filter(Boolean);
+    if (!lines.length || linkBusy) {
+      return;
+    }
+    setLinkBusy(true);
+    let done = 0;
+    const failures: string[] = [];
+    const ytm = MUSIC_PROVIDERS.find(p => p.resolveLink);
+    for (const line of lines) {
+      try {
+        const link = parseMusicLink(line);
+        if (!link) {
+          throw new Error('Not a YouTube or audio link');
+        }
+        if (link.kind === 'youtube') {
+          const resolved = await ytm?.resolveLink?.(line);
+          if (!resolved) {
+            throw new Error('Could not read this YouTube link');
+          }
+          await addMusicLink({resolved, title: '', artist: '', album: ''});
+        } else {
+          await addMusicLink({
+            resolved: null,
+            url: link.url,
+            title: titleFromUrl(link.url),
+            artist: '',
+            album: '',
+          });
+        }
+        done += 1;
+      } catch (e) {
+        failures.push(`${line}\n${e instanceof Error ? e.message : 'failed'}`);
+      }
+    }
+    await useMusicStore.getState().loadTracks(true);
+    setLinkBusy(false);
+    if (failures.length) {
+      showAppDialog({
+        title: done ? 'Some links failed' : 'Could not add link',
+        message: `${done} of ${lines.length} added.\n\n${failures.join('\n\n')}`,
+        variant: 'warning',
+        actions: [{label: 'OK'}],
+      });
+      setLinkText(
+        lines.filter(l => failures.some(f => f.startsWith(l))).join('\n'),
+      );
+      return;
+    }
+    ToastAndroid.show(
+      done === 1 ? 'Song added' : `${done} songs added`,
+      ToastAndroid.SHORT,
+    );
+    setLinkText('');
+    setLinkOpen(false);
   };
 
   const confirmDelete = (track: MusicTrack) => {
@@ -276,6 +344,20 @@ const MusicAdmin = ({navigation}: Props) => {
           />
         </Group>
 
+        <Group
+          inset={58}
+          footer="Paste a YouTube / YouTube Music link or a direct audio URL (.mp3, .m4a, .flac…). Several links can be pasted at once, one per line.">
+          <Row
+            leading={<Badge icon="link" color={IOS.blue} />}
+            title="Add by Link"
+            tint={IOS.tint}
+            onPress={() => {
+              setLinkText('');
+              setLinkOpen(true);
+            }}
+          />
+        </Group>
+
         {loading && tracks.length === 0 ? (
           <ActivityIndicator color={IOS.tint} style={{marginVertical: 30}} />
         ) : tracks.length === 0 ? (
@@ -331,6 +413,27 @@ const MusicAdmin = ({navigation}: Props) => {
           </Group>
         )}
       </ScrollView>
+
+      <Sheet
+        visible={linkOpen}
+        title="Add by Link"
+        doneLabel="Add"
+        doneDisabled={!linkText.trim()}
+        busy={linkBusy}
+        onCancel={() => {
+          if (!linkBusy) {
+            setLinkOpen(false);
+          }
+        }}
+        onDone={saveLinks}>
+        <Group header="Links">
+          <InputRow
+            value={linkText}
+            onChangeText={setLinkText}
+            placeholder="https://music.youtube.com/watch?v=…"
+          />
+        </Group>
+      </Sheet>
 
       <Sheet
         visible={open}

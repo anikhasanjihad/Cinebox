@@ -1,7 +1,6 @@
 import type {BottomTabBarProps} from '@react-navigation/bottom-tabs';
 import React, {useState} from 'react';
 import {
-  TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -12,6 +11,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {settingsStorage} from '../../lib/storage';
 import {useM3Colors} from '../../theme/M3PaletteContext';
 import AppText from '../ui/Text';
+import PressableScale from '../ui/PressableScale';
 import {AnimatedTabIcon, type AnimatedTabIconName} from './AnimatedTabIcon';
 import {isTV} from '../../lib/tv/constants';
 import {useTVFocusBorderColor} from '../../lib/tv/useTVFocusBorderColor';
@@ -151,12 +151,12 @@ const StreamingTabButton = ({
   }
 
   return (
-    <TouchableOpacity
+    <PressableScale
       key={routeKey}
       accessibilityRole="button"
       accessibilityState={isFocused ? {selected: true} : {}}
       accessibilityLabel={accessibilityLabel}
-      activeOpacity={0.85}
+      pressedScale={0.9}
       onLongPress={onLongPress}
       onPress={onPress}
       style={{
@@ -211,7 +211,7 @@ const StreamingTabButton = ({
           {label}
         </AppText>
       ) : null}
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 
@@ -238,6 +238,9 @@ const StreamingTabBar = ({
         backgroundColor: colors.surfaceContainerHigh,
         borderRightColor: isNavigationRail ? colors.outlineVariant : undefined,
         borderRightWidth: isNavigationRail ? StyleSheet.hairlineWidth : 0,
+        // iOS tab bars are separated from the content by a hairline.
+        borderTopColor: colors.outlineVariant,
+        borderTopWidth: isNavigationRail ? 0 : StyleSheet.hairlineWidth,
         height: isNavigationRail ? '100%' : undefined,
         paddingBottom: isNavigationRail
           ? Math.max(insets.bottom, 12)
