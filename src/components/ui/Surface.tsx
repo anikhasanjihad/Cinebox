@@ -34,7 +34,7 @@ const Surface = ({
       style={[
         {
           backgroundColor: backgrounds[level],
-          borderRadius: isTV ? 24 : 28,
+          borderRadius: isTV ? 24 : 20,
           borderWidth: outlined ? 1 : 0,
           borderColor: outlined ? colors.outline : undefined,
         },

@@ -12,11 +12,15 @@ import Animated, {
 import LinearGradient from 'react-native-linear-gradient';
 import {isTV} from '../../lib/tv';
 
+// iOS-style curves (UIKit's default ease-out and ease-in-out).
+const IOS_OUT = Easing.bezier(0.25, 0.46, 0.45, 0.94);
+const IOS_IN_OUT = Easing.bezier(0.42, 0, 0.58, 1);
+
 const RED = '#E50914';
 const TITLE = 'CINEHUB';
 
 /** Total time the intro stays on screen before handing over to the form. */
-export const INTRO_MS = 3300;
+export const INTRO_MS = 1500;
 
 const APP_START = Date.now();
 /** How much of `ms` is still ahead, counted from app launch (0 after logout). */
@@ -27,8 +31,8 @@ const Letter = ({ch, index, size}: {ch: string; index: number; size: number}) =>
   const p = useSharedValue(0);
   useEffect(() => {
     p.value = withDelay(
-      900 + index * 120,
-      withTiming(1, {duration: 560, easing: Easing.out(Easing.cubic)}),
+      420 + index * 55,
+      withTiming(1, {duration: 380, easing: IOS_OUT}),
     );
   }, [index, p]);
   const style = useAnimatedStyle(() => ({
@@ -75,33 +79,33 @@ const CinematicIntro = () => {
 
   useEffect(() => {
     mark.value = withDelay(
-      250,
-      withTiming(1, {duration: 700, easing: Easing.out(Easing.back(1.8))}),
+      120,
+      withTiming(1, {duration: 520, easing: Easing.out(Easing.back(1.4))}),
     );
     ring.value = withDelay(
-      250,
-      withTiming(1, {duration: 1400, easing: Easing.out(Easing.quad)}),
+      120,
+      withTiming(1, {duration: 900, easing: IOS_OUT}),
     );
     ring2.value = withDelay(
-      650,
-      withTiming(1, {duration: 1400, easing: Easing.out(Easing.quad)}),
+      320,
+      withTiming(1, {duration: 900, easing: IOS_OUT}),
     );
     flash.value = withDelay(
-      250,
+      120,
       withSequence(
-        withTiming(0.5, {duration: 120}),
-        withTiming(0, {duration: 700}),
+        withTiming(0.32, {duration: 90}),
+        withTiming(0, {duration: 420}),
       ),
     );
     streak.value = withDelay(
-      1900,
-      withTiming(1, {duration: 750, easing: Easing.inOut(Easing.cubic)}),
+      820,
+      withTiming(1, {duration: 420, easing: IOS_IN_OUT}),
     );
     zoom.value = withDelay(
-      2650,
-      withTiming(1.35, {duration: 650, easing: Easing.in(Easing.quad)}),
+      1150,
+      withTiming(1.18, {duration: 350, easing: IOS_IN_OUT}),
     );
-    out.value = withDelay(2650, withTiming(0, {duration: 650}));
+    out.value = withDelay(1150, withTiming(0, {duration: 350}));
   }, [mark, ring, ring2, flash, streak, zoom, out]);
 
   const wrap = useAnimatedStyle(() => ({

@@ -1,17 +1,23 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Animated,
   BackHandler,
   Modal,
   StatusBar,
+  StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useM3Colors} from '../../theme/M3PaletteContext';
+import {IOS_SPRING} from '../../theme/motion';
+import {useImageAccent} from '../../lib/hooks/useImageAccent';
 import {TVFocusable} from '../tv';
 import AppText from '../ui/Text';
+import MusicButton from './MusicButton';
 import SeekBar from './SeekBar';
 import TrackCover from './TrackCover';
 import useMusicStore, {currentTrack} from '../../lib/zustand/musicStore';
@@ -20,6 +26,7 @@ import useMusicOfflineStore, {
   downloadTrack,
   removeOfflineTrack,
 } from '../../lib/music/musicOffline';
+import {isProviderTrack} from '../../lib/music/types';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -29,41 +36,48 @@ const Control = ({
   onPress,
   size = 30,
   active,
-  big,
+  box,
+  hideIcon,
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
   size?: number;
   active?: boolean;
-  big?: boolean;
+  box?: number;
+  /** Hide the glyph (a spinner is drawn over it instead). */
+  hideIcon?: boolean;
 }) => {
   const colors = useM3Colors();
-  const box = big ? 72 : 52;
+  const hit = box ?? 52;
   return (
-    <TVFocusable
+    <MusicButton
       onPress={onPress}
-      borderRadius={box / 2}
-      accessibilityRole="button"
-      accessibilityLabel={label}
+      label={label}
+      borderRadius={hit / 2}
       style={{
         alignItems: 'center',
-        backgroundColor: big ? colors.primary : 'transparent',
-        borderRadius: box / 2,
-        height: box,
+        height: hit,
         justifyContent: 'center',
-        width: box,
+        width: hit,
       }}>
       <MaterialCommunityIcons
         name={icon}
         size={size}
-        color={
-          big ? colors.onPrimary : active ? colors.primary : colors.onSurface
-        }
+        color={active ? colors.primary : colors.onSurface}
+        style={hideIcon ? {opacity: 0} : undefined}
       />
-    </TVFocusable>
+    </MusicButton>
   );
 };
+
+/** `#RRGGBB` plus an alpha byte, for the cover-tinted backdrop. */
+const withAlpha = (hex: string, alpha: number): string =>
+  /^#[0-9a-f]{6}$/i.test(hex)
+    ? `${hex}${Math.round(alpha * 255)
+        .toString(16)
+        .padStart(2, '0')}`
+    : hex;
 
 const FullPlayer = () => {
   const colors = useM3Colors();
@@ -83,6 +97,21 @@ const FullPlayer = () => {
   const progress = useMusicOfflineStore(s =>
     track ? s.progress[track.id] : undefined,
   );
+  const accent = useImageAccent(
+    track?.cover_url ?? undefined,
+    colors.surfaceContainerHigh,
+  );
+
+  // The artwork settles smaller while paused and grows back on play, the way
+  // Apple Music does it.
+  const artScale = React.useRef(new Animated.Value(playing ? 1 : 0.84)).current;
+  React.useEffect(() => {
+    Animated.spring(artScale, {
+      toValue: playing ? 1 : 0.84,
+      useNativeDriver: true,
+      ...IOS_SPRING.gentle,
+    }).start();
+  }, [playing, artScale]);
 
   React.useEffect(() => {
     if (!open) {
@@ -101,7 +130,8 @@ const FullPlayer = () => {
 
   const s = useMusicStore.getState();
   const landscape = width > height;
-  const coverSize = Math.min(landscape ? height * 0.55 : width - 64, 380);
+  const coverSize = Math.min(landscape ? height * 0.55 : width - 56, 400);
+  const canDownload = !isProviderTrack(track);
 
   const onDownload = () => {
     if (saved) {
@@ -113,19 +143,41 @@ const FullPlayer = () => {
     }
   };
 
+  const artwork = (
+    <Animated.View
+      style={{
+        backgroundColor: colors.surfaceContainerHigh,
+        borderRadius: landscape ? 20 : 24,
+        elevation: 24,
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 16},
+        shadowOpacity: 0.5,
+        shadowRadius: 28,
+        transform: [{scale: artScale}],
+      }}>
+      <TrackCover
+        uri={track.cover_url}
+        size={coverSize}
+        radius={landscape ? 20 : 24}
+      />
+    </Animated.View>
+  );
+
   const meta = (
-    <View style={{alignItems: landscape ? 'flex-start' : 'center'}}>
+    <View style={{alignItems: landscape ? 'flex-start' : 'stretch'}}>
       <AppText
         role="headlineSmallEmphasized"
         numberOfLines={2}
         style={{
           color: colors.onSurface,
-          textAlign: landscape ? 'left' : 'center',
+          fontFamily: 'Inter_700Bold',
+          fontWeight: '700',
+          textAlign: 'left',
         }}>
         {track.title}
       </AppText>
       <AppText
-        role="bodyLarge"
+        role="titleMedium"
         numberOfLines={1}
         style={{color: colors.onSurfaceVariant, marginTop: 4}}>
         {[track.artist, track.album].filter(Boolean).join(' · ') ||
@@ -158,15 +210,16 @@ const FullPlayer = () => {
         <Control
           icon="skip-previous"
           label="Previous track"
-          size={34}
+          size={40}
           onPress={s.previous}
         />
         <View>
           <Control
-            big
+            box={76}
             icon={playing ? 'pause' : 'play'}
             label={playing ? 'Pause' : 'Play'}
-            size={38}
+            size={62}
+            hideIcon={buffering && playing}
             onPress={s.toggle}
           />
           {buffering && playing ? (
@@ -181,14 +234,14 @@ const FullPlayer = () => {
                 right: 0,
                 top: 0,
               }}>
-              <ActivityIndicator color={colors.onPrimary} size="large" />
+              <ActivityIndicator color={colors.onSurface} size="large" />
             </View>
           ) : null}
         </View>
         <Control
           icon="skip-next"
           label="Next track"
-          size={34}
+          size={40}
           onPress={() => s.next()}
         />
         <Control
@@ -212,19 +265,21 @@ const FullPlayer = () => {
           size={26}
           onPress={() => s.seekTo(Math.max(positionMs - 10000, 0))}
         />
-        <Control
-          icon={
-            saved
-              ? 'check-circle'
-              : progress !== undefined
-                ? 'close-circle-outline'
-                : 'download-circle-outline'
-          }
-          label={saved ? 'Remove offline copy' : 'Download for offline'}
-          active={saved}
-          size={26}
-          onPress={onDownload}
-        />
+        {canDownload ? (
+          <Control
+            icon={
+              saved
+                ? 'check-circle'
+                : progress !== undefined
+                  ? 'close-circle-outline'
+                  : 'download-circle-outline'
+            }
+            label={saved ? 'Remove offline copy' : 'Download for offline'}
+            active={saved}
+            size={26}
+            onPress={onDownload}
+          />
+        ) : null}
         <Control
           icon="fast-forward-10"
           label="Forward 10 seconds"
@@ -247,55 +302,85 @@ const FullPlayer = () => {
       animationType="slide"
       statusBarTranslucent
       onRequestClose={() => s.openPlayer(false)}>
-      <View
-        style={{
-          backgroundColor: colors.surface,
-          flex: 1,
-          paddingBottom: Math.max(insets.bottom, 16),
-          paddingHorizontal: 24,
-          paddingTop: (StatusBar.currentHeight ?? insets.top) + 8,
-        }}>
+      <View style={{backgroundColor: colors.background, flex: 1}}>
+        <LinearGradient
+          pointerEvents="none"
+          colors={[withAlpha(accent, 0.5), withAlpha(accent, 0.16), colors.background]}
+          locations={[0, 0.55, 1]}
+          style={StyleSheet.absoluteFill}
+        />
         <View
           style={{
-            alignItems: 'center',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
+            flex: 1,
+            paddingBottom: Math.max(insets.bottom, 16),
+            paddingHorizontal: 24,
+            paddingTop: (StatusBar.currentHeight ?? insets.top) + 8,
           }}>
-          <Control
-            icon="chevron-down"
-            label="Close player"
-            size={32}
-            onPress={() => s.openPlayer(false)}
-          />
-          <AppText role="labelLarge" style={{color: colors.onSurfaceVariant}}>
-            {saved ? 'Playing offline' : 'Now playing'}
-          </AppText>
-          <Control
-            icon="stop-circle-outline"
-            label="Stop and close"
-            size={26}
-            onPress={s.stop}
-          />
+          {/* Grabber: the cue that this sheet closes by swiping/tapping down. */}
+          <View style={{alignItems: 'center'}}>
+            <View
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.35)',
+                borderRadius: 3,
+                height: 5,
+                width: 38,
+              }}
+            />
+          </View>
+          <View
+            style={{
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              marginTop: 4,
+            }}>
+            <Control
+              icon="chevron-down"
+              label="Close player"
+              size={32}
+              onPress={() => s.openPlayer(false)}
+            />
+            <AppText role="labelLarge" style={{color: colors.onSurfaceVariant}}>
+              {saved ? 'Playing offline' : 'Now playing'}
+            </AppText>
+            <TVFocusable
+              onPress={s.stop}
+              borderRadius={26}
+              accessibilityRole="button"
+              accessibilityLabel="Stop and close"
+              style={{
+                alignItems: 'center',
+                height: 52,
+                justifyContent: 'center',
+                width: 52,
+              }}>
+              <MaterialCommunityIcons
+                name="stop-circle-outline"
+                size={26}
+                color={colors.onSurface}
+              />
+            </TVFocusable>
+          </View>
+          {landscape ? (
+            <View style={{alignItems: 'center', flex: 1, flexDirection: 'row'}}>
+              {artwork}
+              <View style={{flex: 1, gap: 16, marginLeft: 32}}>
+                {meta}
+                {controls}
+              </View>
+            </View>
+          ) : (
+            <View style={{flex: 1, justifyContent: 'space-between'}}>
+              <View style={{alignItems: 'center', marginTop: 16}}>
+                {artwork}
+              </View>
+              <View style={{gap: 16}}>
+                {meta}
+                {controls}
+              </View>
+            </View>
+          )}
         </View>
-        {landscape ? (
-          <View style={{alignItems: 'center', flex: 1, flexDirection: 'row'}}>
-            <TrackCover uri={track.cover_url} size={coverSize} radius={24} />
-            <View style={{flex: 1, gap: 16, marginLeft: 32}}>
-              {meta}
-              {controls}
-            </View>
-          </View>
-        ) : (
-          <View style={{flex: 1, justifyContent: 'space-between'}}>
-            <View style={{alignItems: 'center', marginTop: 16}}>
-              <TrackCover uri={track.cover_url} size={coverSize} radius={28} />
-            </View>
-            <View style={{gap: 16}}>
-              {meta}
-              {controls}
-            </View>
-          </View>
-        )}
       </View>
     </Modal>
   );

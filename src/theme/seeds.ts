@@ -4,7 +4,7 @@ export type SeedOption = {
 };
 
 export const DEFAULT_SEED = '#FFFFFF';
-export const LEGACY_TERTIARY_BACKGROUND = '#171717';
+export const LEGACY_TERTIARY_BACKGROUND = '#1C1C1E';
 
 type HexColor = `#${string}`;
 
@@ -82,20 +82,36 @@ export const createCoherentAccentRoles = (seed: string) => {
   } as const;
 };
 
+/**
+ * iOS dark-mode system colors. Surfaces step up in clear layers on the black
+ * background (grouped cell -> raised cell -> pressed/selected fill) instead of
+ * one flat gray, which is what gives iOS lists and cards their depth.
+ */
+export const IOS_DARK = {
+  background: '#000000',
+  grouped: '#1C1C1E',
+  raised: '#2C2C2E',
+  fill: '#3A3A3C',
+  label: '#FFFFFF',
+  secondaryLabel: '#A1A1A6',
+  separator: '#38383A',
+  chevron: '#636366',
+} as const;
+
 export const LEGACY_NEUTRAL_SURFACE_ROLES = {
-  surface: LEGACY_TERTIARY_BACKGROUND,
-  surfaceDim: LEGACY_TERTIARY_BACKGROUND,
-  surfaceContainerLowest: LEGACY_TERTIARY_BACKGROUND,
-  surfaceContainerLow: LEGACY_TERTIARY_BACKGROUND,
-  surfaceContainer: LEGACY_TERTIARY_BACKGROUND,
-  surfaceContainerHigh: LEGACY_TERTIARY_BACKGROUND,
-  surfaceContainerHighest: LEGACY_TERTIARY_BACKGROUND,
-  surfaceBright: LEGACY_TERTIARY_BACKGROUND,
-  surfaceVariant: LEGACY_TERTIARY_BACKGROUND,
-  onSurface: '#F5F0EF',
-  onSurfaceVariant: '#D4CBC9',
-  outline: '#938A88',
-  outlineVariant: '#494240',
+  surface: IOS_DARK.grouped,
+  surfaceDim: '#0B0B0C',
+  surfaceContainerLowest: '#101012',
+  surfaceContainerLow: IOS_DARK.grouped,
+  surfaceContainer: IOS_DARK.grouped,
+  surfaceContainerHigh: IOS_DARK.raised,
+  surfaceContainerHighest: IOS_DARK.fill,
+  surfaceBright: IOS_DARK.fill,
+  surfaceVariant: IOS_DARK.raised,
+  onSurface: IOS_DARK.label,
+  onSurfaceVariant: IOS_DARK.secondaryLabel,
+  outline: IOS_DARK.chevron,
+  outlineVariant: IOS_DARK.separator,
 } as const;
 
 /**

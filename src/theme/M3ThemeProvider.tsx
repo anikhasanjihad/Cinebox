@@ -6,6 +6,7 @@ import {M3_COLOR_ROLES, roleToCssVar} from './colors';
 import {
   createCoherentAccentRoles,
   DEFAULT_SEED,
+  IOS_DARK,
   LEGACY_NEUTRAL_SURFACE_ROLES,
 } from './seeds';
 import {M3HostThemeContext, M3PaletteContext} from './M3PaletteContext';
@@ -29,12 +30,12 @@ export const M3ThemeProvider = ({children}: {children: React.ReactNode}) => {
       ...generatedPalette,
       ...customAccentRoles,
       ...LEGACY_NEUTRAL_SURFACE_ROLES,
-      background: '#000000',
-      onBackground: '#F2F2F2',
-      onSurface: '#F2F2F2',
-      onSurfaceVariant: '#C4C4C4',
-      outline: '#909090',
-      outlineVariant: '#454545',
+      background: IOS_DARK.background,
+      onBackground: IOS_DARK.label,
+      onSurface: IOS_DARK.label,
+      onSurfaceVariant: IOS_DARK.secondaryLabel,
+      outline: IOS_DARK.chevron,
+      outlineVariant: IOS_DARK.separator,
     } as const;
   }, [primary, source]);
   const hostTheme = useMemo(

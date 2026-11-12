@@ -63,30 +63,33 @@ const SeekBar = ({positionMs, durationMs, onSeek}: Props) => {
         <View
           pointerEvents="none"
           style={{
-            backgroundColor: colors.surfaceContainerHighest,
-            borderRadius: 3,
-            height: dragRatio !== null ? 6 : 4,
+            backgroundColor: 'rgba(255,255,255,0.22)',
+            borderRadius: 4,
+            height: dragRatio !== null ? 10 : 5,
             overflow: 'hidden',
           }}>
           <View
             style={{
-              backgroundColor: colors.primary,
+              backgroundColor: colors.onSurface,
               height: '100%',
               width: width * ratio,
             }}
           />
         </View>
-        <View
-          pointerEvents="none"
-          style={{
-            backgroundColor: colors.primary,
-            borderRadius: 7,
-            height: 14,
-            left: Math.max(width * ratio - 7, 0),
-            position: 'absolute',
-            width: 14,
-          }}
-        />
+        {/* iOS shows the thumb only while the scrubber is being dragged. */}
+        {dragRatio !== null ? (
+          <View
+            pointerEvents="none"
+            style={{
+              backgroundColor: colors.onSurface,
+              borderRadius: 9,
+              height: 18,
+              left: Math.max(width * ratio - 9, 0),
+              position: 'absolute',
+              width: 18,
+            }}
+          />
+        ) : null}
       </View>
       <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
         <AppText role="labelMedium" style={{color: colors.onSurfaceVariant}}>

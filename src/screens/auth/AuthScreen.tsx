@@ -343,7 +343,7 @@ const AuthScreen = () => {
 
   // The opening animation is an app-level overlay; on a cold start the form
   // waits for it to hand over, after a sign-out there is nothing to wait for.
-  const [base] = useState(() => introDelayFor(2500));
+  const [base] = useState(() => introDelayFor(1100));
 
   const emailRef = useRef<TextInput>(null);
   const passRef = useRef<TextInput>(null);

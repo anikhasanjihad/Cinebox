@@ -1,9 +1,11 @@
-import React from 'react';
-import {ActivityIndicator, View} from 'react-native';
+import React, {useEffect, useRef} from 'react';
+import {ActivityIndicator, Animated, View} from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {useM3Colors} from '../../theme/M3PaletteContext';
+import {IOS_SPRING} from '../../theme/motion';
 import {TVFocusable} from '../tv';
 import AppText from '../ui/Text';
+import MusicButton from './MusicButton';
 import TrackCover from './TrackCover';
 import useMusicStore, {currentTrack} from '../../lib/zustand/musicStore';
 
@@ -14,6 +16,17 @@ const MiniPlayer = () => {
   const buffering = useMusicStore(s => s.buffering);
   const positionMs = useMusicStore(s => s.positionMs);
   const durationMs = useMusicStore(s => s.durationMs);
+
+  // Rises into place when the first track starts, like iOS' now-playing bar.
+  const enter = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(enter, {
+      toValue: 1,
+      useNativeDriver: true,
+      ...IOS_SPRING.standard,
+    }).start();
+  }, [enter]);
+
   if (!track) {
     return null;
   }
@@ -22,13 +35,29 @@ const MiniPlayer = () => {
   const {toggle, next, openPlayer} = useMusicStore.getState();
 
   return (
-    <View
+    <Animated.View
       style={{
         backgroundColor: colors.surfaceContainerHigh,
-        borderRadius: 20,
+        borderColor: colors.outlineVariant,
+        borderRadius: 18,
+        borderWidth: 0.5,
+        elevation: 8,
         marginBottom: 8,
         marginHorizontal: 12,
+        opacity: enter,
         overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 4},
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        transform: [
+          {
+            translateY: enter.interpolate({
+              inputRange: [0, 1],
+              outputRange: [28, 0],
+            }),
+          },
+        ],
       }}>
       <View style={{alignItems: 'center', flexDirection: 'row', padding: 8}}>
         <TVFocusable
@@ -38,7 +67,7 @@ const MiniPlayer = () => {
           accessibilityRole="button"
           accessibilityLabel="Open player"
           style={{alignItems: 'center', flex: 1, flexDirection: 'row'}}>
-          <TrackCover uri={track.cover_url} size={44} radius={12} />
+          <TrackCover uri={track.cover_url} size={44} radius={9} />
           <View style={{flex: 1, marginHorizontal: 12}}>
             <AppText
               role="titleSmall"
@@ -54,11 +83,9 @@ const MiniPlayer = () => {
             </AppText>
           </View>
         </TVFocusable>
-        <TVFocusable
+        <MusicButton
           onPress={toggle}
-          borderRadius={22}
-          accessibilityRole="button"
-          accessibilityLabel={playing ? 'Pause' : 'Play'}
+          label={playing ? 'Pause' : 'Play'}
           style={{
             alignItems: 'center',
             height: 44,
@@ -74,12 +101,10 @@ const MiniPlayer = () => {
               color={colors.onSurface}
             />
           )}
-        </TVFocusable>
-        <TVFocusable
+        </MusicButton>
+        <MusicButton
           onPress={() => next()}
-          borderRadius={22}
-          accessibilityRole="button"
-          accessibilityLabel="Next track"
+          label="Next track"
           style={{
             alignItems: 'center',
             height: 44,
@@ -91,18 +116,18 @@ const MiniPlayer = () => {
             size={28}
             color={colors.onSurface}
           />
-        </TVFocusable>
+        </MusicButton>
       </View>
-      <View style={{backgroundColor: colors.surfaceContainerHighest, height: 3}}>
+      <View style={{backgroundColor: colors.surfaceContainerHighest, height: 2}}>
         <View
           style={{
-            backgroundColor: colors.primary,
-            height: 3,
+            backgroundColor: colors.onSurface,
+            height: 2,
             width: `${ratio * 100}%`,
           }}
         />
       </View>
-    </View>
+    </Animated.View>
   );
 };
 

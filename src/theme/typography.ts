@@ -5,17 +5,25 @@ type TypographyToken = Pick<
   'fontFamily' | 'fontSize' | 'fontWeight' | 'letterSpacing' | 'lineHeight'
 >;
 
+// iOS (SF) sets large text with tighter tracking, and large titles in bold.
 const brand = (
   fontSize: number,
   lineHeight: number,
   emphasized = false,
-): TypographyToken => ({
-  fontFamily: emphasized ? 'Inter_500Medium' : 'Inter_400Regular',
-  fontSize,
-  lineHeight,
-  letterSpacing: 0,
-  fontWeight: emphasized ? '500' : '400',
-});
+): TypographyToken => {
+  const bold = emphasized && fontSize >= 28;
+  return {
+    fontFamily: bold
+      ? 'Inter_700Bold'
+      : emphasized
+        ? 'Inter_500Medium'
+        : 'Inter_400Regular',
+    fontSize,
+    lineHeight,
+    letterSpacing: fontSize >= 36 ? -0.8 : fontSize >= 28 ? -0.5 : -0.3,
+    fontWeight: bold ? '700' : emphasized ? '500' : '400',
+  };
+};
 
 const plain = (
   fontSize: number,
@@ -43,14 +51,14 @@ export const M3_TYPE = {
   headlineMedium: brand(28, 36),
   headlineSmall: brand(24, 32),
   titleLarge: brand(22, 28),
-  titleMedium: plain(16, 24, 0.2, '500'),
-  titleSmall: plain(14, 20, 0.1, '500'),
-  bodyLarge: plain(16, 24, 0.5),
-  bodyMedium: plain(14, 20, 0.2),
-  bodySmall: plain(12, 16, 0.4),
-  labelLarge: plain(14, 20, 0.1, '500'),
-  labelMedium: plain(12, 16, 0.5, '500'),
-  labelSmall: plain(11, 16, 0.5, '500'),
+  titleMedium: plain(16, 24, -0.3, '500'),
+  titleSmall: plain(14, 20, -0.2, '500'),
+  bodyLarge: plain(16, 24, -0.3),
+  bodyMedium: plain(14, 20, -0.15),
+  bodySmall: plain(12, 16, 0),
+  labelLarge: plain(14, 20, -0.15, '500'),
+  labelMedium: plain(12, 16, 0, '500'),
+  labelSmall: plain(11, 16, 0.1, '500'),
   displayLargeEmphasized: brand(57, 64, true),
   displayMediumEmphasized: brand(45, 52, true),
   displaySmallEmphasized: brand(36, 44, true),
@@ -58,14 +66,14 @@ export const M3_TYPE = {
   headlineMediumEmphasized: brand(28, 36, true),
   headlineSmallEmphasized: brand(24, 32, true),
   titleLargeEmphasized: brand(22, 28, true),
-  titleMediumEmphasized: plain(16, 24, 0.15, '700'),
-  titleSmallEmphasized: plain(14, 20, 0.1, '700'),
-  bodyLargeEmphasized: plain(16, 24, 0.15, '500'),
-  bodyMediumEmphasized: plain(14, 20, 0.25, '500'),
-  bodySmallEmphasized: plain(12, 16, 0.4, '500'),
-  labelLargeEmphasized: plain(14, 20, 0.1, '700'),
-  labelMediumEmphasized: plain(12, 16, 0.5, '700'),
-  labelSmallEmphasized: plain(11, 16, 0.5, '700'),
+  titleMediumEmphasized: plain(16, 24, -0.3, '700'),
+  titleSmallEmphasized: plain(14, 20, -0.2, '700'),
+  bodyLargeEmphasized: plain(16, 24, -0.3, '500'),
+  bodyMediumEmphasized: plain(14, 20, -0.15, '500'),
+  bodySmallEmphasized: plain(12, 16, 0, '500'),
+  labelLargeEmphasized: plain(14, 20, -0.15, '700'),
+  labelMediumEmphasized: plain(12, 16, 0, '700'),
+  labelSmallEmphasized: plain(11, 16, 0.1, '700'),
 } as const satisfies Record<string, TypographyToken>;
 
 export type M3TypeRole = keyof typeof M3_TYPE;

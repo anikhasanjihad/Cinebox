@@ -1,13 +1,17 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {FlatList, RefreshControl, View} from 'react-native';
+import {ActivityIndicator, FlatList, RefreshControl, View} from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import ScreenSafeArea from '../../components/ui/ScreenSafeArea';
 import AppText from '../../components/ui/Text';
 import SearchField from '../../components/ui/SearchField';
-import {TVFocusable, TVFocusGuide} from '../../components/tv';
+import {TVFocusGuide} from '../../components/tv';
 import TrackRow from '../../components/music/TrackRow';
 import MiniPlayer from '../../components/music/MiniPlayer';
 import FullPlayer from '../../components/music/FullPlayer';
+import MusicButton from '../../components/music/MusicButton';
+import SegmentedControl, {
+  type SegmentOption,
+} from '../../components/music/SegmentedControl';
 import {useM3Colors} from '../../theme/M3PaletteContext';
 import {showAppDialog} from '../../lib/zustand/appDialogStore';
 import useMusicStore, {currentTrack} from '../../lib/zustand/musicStore';
@@ -18,53 +22,11 @@ import useMusicOfflineStore, {
   removeOfflineTrack,
 } from '../../lib/music/musicOffline';
 import {matchesQuery, type MusicTrack} from '../../lib/music/types';
+import {MUSIC_PROVIDERS, getMusicProvider} from '../../lib/music/providers/registry';
+import {useProviderSearch} from '../../lib/music/providers/useProviderSearch';
 
-type Tab = 'all' | 'offline';
-
-const Chip = ({
-  label,
-  icon,
-  selected,
-  onPress,
-}: {
-  label: string;
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-  selected: boolean;
-  onPress: () => void;
-}) => {
-  const colors = useM3Colors();
-  return (
-    <TVFocusable
-      onPress={onPress}
-      borderRadius={18}
-      accessibilityRole="button"
-      accessibilityState={{selected}}
-      style={{
-        alignItems: 'center',
-        backgroundColor: selected
-          ? colors.secondaryContainer
-          : colors.surfaceContainerHigh,
-        borderRadius: 18,
-        flexDirection: 'row',
-        height: 36,
-        paddingHorizontal: 14,
-      }}>
-      <MaterialCommunityIcons
-        name={icon}
-        size={18}
-        color={selected ? colors.onSecondaryContainer : colors.onSurfaceVariant}
-      />
-      <AppText
-        role="labelLarge"
-        style={{
-          color: selected ? colors.onSecondaryContainer : colors.onSurface,
-          marginLeft: 6,
-        }}>
-        {label}
-      </AppText>
-    </TVFocusable>
-  );
-};
+/** 'all' = the Library, 'offline' = saved copies, anything else = a provider id. */
+type Tab = string;
 
 const Music = () => {
   const colors = useM3Colors();
@@ -81,10 +43,26 @@ const Music = () => {
   const [tab, setTab] = useState<Tab>('all');
   const [query, setQuery] = useState('');
 
+  const provider = getMusicProvider(tab);
+  const search = useProviderSearch(provider, query);
+
   useEffect(() => {
     void useMusicStore.getState().loadTracks();
     void reconcileOfflineTracks();
   }, []);
+
+  const segments = useMemo<SegmentOption[]>(
+    () => [
+      {key: 'all', label: 'Library', icon: 'music-note'},
+      ...MUSIC_PROVIDERS.map(p => ({
+        key: p.id,
+        label: p.name,
+        icon: p.icon as SegmentOption['icon'],
+      })),
+      {key: 'offline', label: 'Offline', icon: 'download-circle-outline'},
+    ],
+    [],
+  );
 
   const offlineTracks = useMemo(
     () =>
@@ -94,13 +72,14 @@ const Music = () => {
     [entries],
   );
 
-  const visible = useMemo(
-    () =>
-      (tab === 'all' ? tracks : offlineTracks).filter(t =>
-        matchesQuery(t, query),
-      ),
-    [tab, tracks, offlineTracks, query],
-  );
+  const visible = useMemo(() => {
+    if (provider) {
+      return search.tracks;
+    }
+    return (tab === 'all' ? tracks : offlineTracks).filter(t =>
+      matchesQuery(t, query),
+    );
+  }, [provider, search.tracks, tab, tracks, offlineTracks, query]);
 
   const onPlay = useCallback(
     (track: MusicTrack) => {
@@ -154,73 +133,163 @@ const Music = () => {
     [activeTrack?.id, playing, entries, progress, errors, onPlay, onDownloadPress],
   );
 
+  const providerBusy = Boolean(provider) && search.loading;
+  const providerError = provider ? search.error : null;
+  const emptyIcon = provider
+    ? providerError
+      ? 'cloud-off-outline'
+      : 'magnify'
+    : tab === 'offline'
+      ? 'download-off-outline'
+      : 'music-off';
+  const emptyTitle = provider
+    ? providerBusy
+      ? 'Searching…'
+      : providerError
+        ? 'Could not search'
+        : search.committed
+          ? 'No songs found'
+          : `Search ${provider.name}`
+    : loading
+      ? 'Loading music…'
+      : query
+        ? 'No songs match your search'
+        : tab === 'offline'
+          ? 'No offline songs yet'
+          : error
+            ? 'Could not load music'
+            : 'No music has been added yet';
+  const emptyBody = provider
+    ? providerError
+      ? providerError
+      : search.committed
+        ? 'Try a different spelling or another artist.'
+        : 'Type a song, artist or album to start listening.'
+    : tab === 'offline' && !query
+      ? 'Tap the download icon next to a song to listen without internet.'
+      : error && !query
+        ? error
+        : '';
+
   const empty = (
     <View style={{alignItems: 'center', paddingHorizontal: 32, paddingTop: 64}}>
-      <MaterialCommunityIcons
-        name={tab === 'offline' ? 'download-off-outline' : 'music-off'}
-        size={56}
-        color={colors.onSurfaceVariant}
-      />
+      {providerBusy ? (
+        <ActivityIndicator size="large" color={colors.onSurfaceVariant} />
+      ) : (
+        <MaterialCommunityIcons
+          name={emptyIcon}
+          size={56}
+          color={colors.onSurfaceVariant}
+        />
+      )}
       <AppText
         role="titleMedium"
         style={{color: colors.onSurface, marginTop: 12, textAlign: 'center'}}>
-        {loading
-          ? 'Loading music…'
-          : query
-            ? 'No songs match your search'
-            : tab === 'offline'
-              ? 'No offline songs yet'
-              : error
-                ? 'Could not load music'
-                : 'No music has been added yet'}
+        {emptyTitle}
       </AppText>
-      <AppText
-        role="bodyMedium"
-        style={{
-          color: colors.onSurfaceVariant,
-          marginTop: 6,
-          textAlign: 'center',
-        }}>
-        {tab === 'offline' && !query
-          ? 'Tap the download icon next to a song to listen without internet.'
-          : error && !query
-            ? error
-            : ''}
-      </AppText>
+      {emptyBody ? (
+        <AppText
+          role="bodyMedium"
+          style={{
+            color: colors.onSurfaceVariant,
+            marginTop: 6,
+            textAlign: 'center',
+          }}>
+          {emptyBody}
+        </AppText>
+      ) : null}
+      {provider && providerError ? (
+        <MusicButton
+          onPress={search.retry}
+          label="Try again"
+          borderRadius={18}
+          style={{
+            backgroundColor: colors.surfaceContainerHighest,
+            borderRadius: 18,
+            marginTop: 16,
+            paddingHorizontal: 18,
+            paddingVertical: 10,
+          }}>
+          <AppText role="labelLargeEmphasized" style={{color: colors.onSurface}}>
+            Try again
+          </AppText>
+        </MusicButton>
+      ) : null}
     </View>
   );
+
+  const suggestionList =
+    provider && search.suggestions.length > 0 ? (
+      <View style={{paddingBottom: 4}}>
+        {search.suggestions.map(text => (
+          <MusicButton
+            key={text}
+            label={`Search ${text}`}
+            borderRadius={10}
+            onPress={() => {
+              setQuery(text);
+              search.submit(text);
+            }}
+            style={{
+              alignItems: 'center',
+              flexDirection: 'row',
+              paddingHorizontal: 16,
+              paddingVertical: 11,
+            }}>
+            <MaterialCommunityIcons
+              name="magnify"
+              size={18}
+              color={colors.onSurfaceVariant}
+            />
+            <AppText
+              role="bodyLarge"
+              numberOfLines={1}
+              style={{color: colors.onSurface, marginLeft: 12}}>
+              {text}
+            </AppText>
+          </MusicButton>
+        ))}
+      </View>
+    ) : null;
 
   return (
     <ScreenSafeArea style={{backgroundColor: colors.background}}>
       <TVFocusGuide autoFocus style={{flex: 1}}>
         <View style={{paddingHorizontal: 16, paddingTop: 12}}>
-          <AppText role="headlineMediumEmphasized" style={{color: colors.onSurface}}>
+          <AppText
+            role="headlineMediumEmphasized"
+            style={{color: colors.onSurface}}>
             Music
           </AppText>
           <View style={{marginTop: 12}}>
             <SearchField
               value={query}
               onChangeText={setQuery}
-              onSubmit={setQuery}
+              onSubmit={text => {
+                setQuery(text);
+                if (provider) {
+                  search.submit(text);
+                }
+              }}
               onClear={() => setQuery('')}
-              placeholder="Search songs, artists, albums"
+              placeholder={
+                provider ? provider.placeholder : 'Search songs, artists, albums'
+              }
             />
           </View>
-          <View style={{flexDirection: 'row', gap: 8, marginBottom: 8, marginTop: 12}}>
-            <Chip
-              label="All songs"
-              icon="music-note"
-              selected={tab === 'all'}
-              onPress={() => setTab('all')}
-            />
-            <Chip
-              label={`Offline${offlineTracks.length ? ` (${offlineTracks.length})` : ''}`}
-              icon="download-circle-outline"
-              selected={tab === 'offline'}
-              onPress={() => setTab('offline')}
+          <View style={{marginBottom: 8, marginTop: 12}}>
+            <SegmentedControl
+              options={segments.map(o =>
+                o.key === 'offline' && offlineTracks.length
+                  ? {...o, label: `Offline (${offlineTracks.length})`}
+                  : o,
+              )}
+              value={tab}
+              onChange={setTab}
             />
           </View>
         </View>
+        {suggestionList}
         <FlatList
           data={visible}
           keyExtractor={item => item.id}
