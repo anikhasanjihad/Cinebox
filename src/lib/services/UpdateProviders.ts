@@ -224,12 +224,12 @@ class UpdateProvidersService {
     } catch (error) {
       if (
         error instanceof Error &&
-        false && error.message.includes('rate limit') && settingsStorage.isProviderAutoUpdateEnabled()
+        false && (error as Error).message.includes('rate limit') && settingsStorage.isProviderAutoUpdateEnabled()
       ) {
         await notificationService.displayUpdateNotification({
           id: 'rate-limit-warning',
           title: 'Rate Limited',
-          body: error.message,
+          body: (error as Error).message,
         });
       }
       throw error;

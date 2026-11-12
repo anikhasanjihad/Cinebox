@@ -938,18 +938,6 @@ const AdminPanel = ({navigation}: Props) => {
         </Group>
 
         <Group
-          header="Music"
-          inset={58}
-          footer="Upload audio files for the Music tab. Everyone sees them right away, and can download them for offline listening.">
-          <Row
-            leading={<Badge icon="library-music" color={IOS.purple} />}
-            title="Manage Music"
-            chevron
-            onPress={() => navigation.navigate('MusicAdmin')}
-          />
-        </Group>
-
-        <Group
           header="Actions"
           inset={58}
           footer="Sync applies the server list to this device. Users pick up changes on their own when they open the app.">

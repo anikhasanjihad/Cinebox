@@ -189,7 +189,7 @@ const About = ({navigation}: any) => {
           <SettingsRow
             title="Support group"
             description="Get help on Telegram"
-            icon="support"
+            icon="lifebuoy"
             onPress={() => open(socialLinks.telegram)}
             divider={false}
           />

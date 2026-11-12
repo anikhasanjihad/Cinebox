@@ -404,10 +404,10 @@ class RemotePlaybackManager {
     if(useRemoteStore.getState().connectedDevice?.type==='cinehub-cast')return;
     if (!status || this.ending) return;
 
-    const supportedCmds =
-      typeof status.supportedMediaCommands === 'number'
-        ? status.supportedMediaCommands
-        : undefined;
+    // Not in every cast SDK's MediaStatus typings, but sent by some receivers.
+    const rawCmds = (status as unknown as {supportedMediaCommands?: unknown})
+      .supportedMediaCommands;
+    const supportedCmds = typeof rawCmds === 'number' ? rawCmds : undefined;
     if (
       supportedCmds !== undefined &&
       this.lastSupportedMediaCommands !== supportedCmds

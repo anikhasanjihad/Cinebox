@@ -1,6 +1,6 @@
 import {create} from 'zustand';
 import {AppState} from 'react-native';
-import type {Session, User} from '@supabase/supabase-js';
+import type {AuthError, Session, User} from '@supabase/supabase-js';
 import {supabase, SUPABASE_URL, CineHubProfile} from '../supabase';
 import {mainStorage} from '../storage/StorageService';
 
@@ -141,7 +141,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       const result = await withTimeout(
         supabase.auth.getSession(),
         AUTH_INIT_TIMEOUT_MS,
-        {data: {session: null}, error: new Error('auth-init-timeout')},
+        {data: {session: null}, error: new Error('auth-init-timeout') as unknown as AuthError},
       );
       // After a cached start, a timeout must not sign the user out.
       if (!(showedCached && result.error?.message === 'auth-init-timeout')) {

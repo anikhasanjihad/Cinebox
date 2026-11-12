@@ -32,7 +32,6 @@ import SearchResults from './screens/SearchResults';
 import About from './screens/settings/About';
 import Profile from './screens/profile/Profile';
 import AdminPanel from './screens/admin/AdminPanel';
-import MusicAdmin from './screens/admin/MusicAdmin';
 import AuthScreen from './screens/auth/AuthScreen';
 import useAuthStore from './lib/zustand/authStore';
 import {syncServers} from './lib/services/serverSync';
@@ -96,9 +95,6 @@ import {
 } from './lib/sync/syncService';
 import StreamingTabBar from './components/navigation/StreamingTabBar';
 import LiveTv from './screens/livetv/LiveTv';
-import Music from './screens/music/Music';
-import MusicPlayerHost from './components/music/MusicPlayerHost';
-import useMusicStore from './lib/zustand/musicStore';
 import WatchTogether from './screens/party/WatchTogether';
 import usePartyStore from './lib/watchParty/watchParty';
 import CinematicIntro, {INTRO_MS} from './screens/auth/CinematicIntro';
@@ -194,7 +190,6 @@ export type SettingsStackParamList = {
   SubTitlesPreferences: undefined;
   Profile: undefined;
   AdminPanel: undefined;
-  MusicAdmin: undefined;
   DownloadsStack: undefined;
 };
 
@@ -209,7 +204,6 @@ export type TabStackParamList = {
   SearchStack: undefined;
   WatchListStack: undefined;
   DownloadsStack: undefined;
-  Music: undefined;
   LiveTv: undefined;
   SettingsStack: undefined;
 };
@@ -367,10 +361,6 @@ const watchListTabOptions = {
   title: 'Library',
   tabBarIcon: makeTabIcon('bookmark', 'bookmark-outline'),
 };
-const musicTabOptions = {
-  title: 'Music',
-  tabBarIcon: makeTabIcon('music-note', 'music-note-outline'),
-};
 const liveTvTabOptions = {
   title: 'Live TV',
   tabBarIcon: makeTabIcon('television-classic', 'television-classic'),
@@ -482,7 +472,6 @@ function SettingsStackScreen() {
       />
       <SettingsStack.Screen name="Profile" component={Profile} />
       <SettingsStack.Screen name="AdminPanel" component={AdminPanel} />
-      <SettingsStack.Screen name="MusicAdmin" component={MusicAdmin} />
       <SettingsStack.Screen
         name="DownloadsStack"
         component={DownloadsStackScreen}
@@ -543,11 +532,6 @@ function TabStack() {
           options={downloadsTabOptions}
         />
       )}
-      <Tab.Screen
-        name="Music"
-        component={Music}
-        options={musicTabOptions}
-      />
       <Tab.Screen
         name="LiveTv"
         component={LiveTv}
@@ -874,10 +858,6 @@ const App = () => {
   }, [hasFirebase, hideSplash]);
 
   const handleNavigationStateChange = useCallback(async () => {
-    // A movie or episode starting must not play over background music.
-    if (navigationRef.getCurrentRoute()?.name === 'Player') {
-      useMusicStore.getState().pause();
-    }
     if (hasFirebase) {
       await logScreenView();
     }
@@ -930,9 +910,6 @@ const App = () => {
                 mounted for the app lifetime: every provider call is dispatched
                 into it. */}
               <ProviderSandboxHost />
-              {/* Audio engine for the Music tab; stays mounted so playback
-                continues across tabs and in the background. */}
-              <MusicPlayerHost />
               {introVisible && <CinematicIntro />}
             </GestureHandlerRootView>
           </QueryClientProvider>
