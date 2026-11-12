@@ -176,9 +176,12 @@ const StreamingTabButton = ({
         pointerEvents="none"
         style={{
           alignItems: 'center',
-          backgroundColor: isFocused
-            ? colors.secondaryContainer
-            : 'transparent',
+          // Bottom bar follows iOS: no pill, the active tab is just tinted.
+          // The side rail on big screens keeps its pill, like the iPad sidebar.
+          backgroundColor:
+            isFocused && isNavigationRail
+              ? colors.secondaryContainer
+              : 'transparent',
           borderRadius: 16,
           height: 34,
           justifyContent: 'center',
@@ -189,9 +192,15 @@ const StreamingTabButton = ({
           name={icon}
           active={isFocused}
           color={
-            isFocused ? colors.onSecondaryContainer : colors.onSurfaceVariant
+            isNavigationRail
+              ? isFocused
+                ? colors.onSecondaryContainer
+                : colors.onSurfaceVariant
+              : isFocused
+                ? colors.primary
+                : colors.onSurfaceVariant
           }
-          size={24}
+          size={isNavigationRail ? 24 : 26}
         />
       </View>
       {showLabels ? (
@@ -202,10 +211,16 @@ const StreamingTabButton = ({
           minimumFontScale={0.75}
           style={{
             width: isNavigationRail ? undefined : '100%',
-            color: isFocused ? colors.onSurface : colors.onSurfaceVariant,
-            marginTop: 4,
+            color: isFocused
+              ? isNavigationRail
+                ? colors.onSurface
+                : colors.primary
+              : colors.onSurfaceVariant,
+            fontSize: isNavigationRail ? undefined : 10.5,
+            letterSpacing: isNavigationRail ? undefined : 0.1,
+            marginTop: isNavigationRail ? 4 : 1,
             textAlign: 'center',
-            fontWeight: isFocused ? '600' : '400',
+            fontWeight: isFocused ? '600' : '500',
           }}>
           {label}
         </AppText>

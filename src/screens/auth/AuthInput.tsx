@@ -76,7 +76,7 @@ const AuthInput = React.forwardRef<TextInput, Props>(
         style={[
           {
             height,
-            borderRadius: 10,
+            borderRadius: 14,
             borderWidth: 1.5,
             marginBottom: 14,
             justifyContent: 'center',

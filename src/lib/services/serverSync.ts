@@ -126,7 +126,11 @@ const run = async (): Promise<SyncResult> => {
       for (let i = 0; i < manifest.length; i += 1) {
         const remote = manifest[i];
         const display_name = labelFor(server.label, i, total);
-        const provider: ProviderExtension = {...remote, display_name};
+        const provider: ProviderExtension = {
+          ...remote,
+          display_name,
+          icon: server.logo_url?.trim() || remote.icon,
+        };
         keep.add(provider.value);
 
         const installed = extensionStorage
@@ -156,7 +160,11 @@ const run = async (): Promise<SyncResult> => {
           continue;
         }
         const idx = manifest.findIndex(m => m.value === p.value);
-        next.push({...p, display_name: labelFor(server.label, idx, total)});
+        next.push({
+          ...p,
+          display_name: labelFor(server.label, idx, total),
+          icon: server.logo_url?.trim() || p.icon,
+        });
       }
       extensionStorage.setInstalledProviders(next);
     } catch (error) {

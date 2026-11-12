@@ -66,6 +66,9 @@ interface Draft {
   source_url: string;
   manifest_url: string;
   provider_value: string;
+  logo_url: string;
+  /** The saved server already had a logo, so clearing it must write null. */
+  hadLogo?: boolean;
   enabled: boolean;
   hidden: string[];
 }
@@ -75,6 +78,7 @@ const EMPTY: Draft = {
   source_url: '',
   manifest_url: '',
   provider_value: '',
+  logo_url: '',
   enabled: true,
   hidden: [],
 };
@@ -541,6 +545,8 @@ const AdminPanel = ({navigation}: Props) => {
       source_url: s.source_url,
       manifest_url: s.manifest_url ?? '',
       provider_value: s.provider_value ?? '',
+      logo_url: s.logo_url ?? '',
+      hadLogo: Boolean(s.logo_url),
       enabled: s.enabled,
       hidden: s.hidden_providers ?? [],
     };
@@ -576,6 +582,12 @@ const AdminPanel = ({navigation}: Props) => {
       provider_value: draft.provider_value.trim() || null,
       enabled: draft.enabled,
       hidden_providers: draft.hidden,
+      // Only sent when used, so saving still works before server_logo.sql is run.
+      ...(draft.logo_url.trim()
+        ? {logo_url: draft.logo_url.trim()}
+        : draft.hadLogo
+          ? {logo_url: null}
+          : {}),
     };
     const result = draft.id
       ? await supabase.from('cinehub_servers').update(row).eq('id', draft.id)
@@ -981,6 +993,15 @@ const AdminPanel = ({navigation}: Props) => {
                 value={draft.source_url}
                 placeholder="https://github.com/you/your-providers"
                 onChangeText={v => setDraft({...draft, source_url: v})}
+              />
+            </Group>
+            <Group
+              header="Logo URL (optional)"
+              footer="Shown on this server's card on the Home screen. Run supabase/server_logo.sql once to enable it.">
+              <InputRow
+                value={draft.logo_url}
+                placeholder="https://…/logo.png"
+                onChangeText={v => setDraft({...draft, logo_url: v})}
               />
             </Group>
             <Group

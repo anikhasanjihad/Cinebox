@@ -275,14 +275,14 @@ const ShimmerButton = ({label, busy, onPress, fs}: ButtonProps) => {
     <TVFocusable
       onPress={onPress}
       disabled={busy}
-      borderRadius={10}
+      borderRadius={14}
       focusScale={1.04}
       hasTVPreferredFocus={isTV}
       accessibilityRole="button"
       accessibilityLabel={label}
       style={{
         height: isTV ? 60 : 54,
-        borderRadius: 10,
+        borderRadius: 14,
         backgroundColor: busy ? '#9b0710' : RED,
         alignItems: 'center',
         justifyContent: 'center',
@@ -585,12 +585,18 @@ const AuthScreen = () => {
                 {
                   width: '100%',
                   maxWidth: cardWidth ?? 440,
-                  backgroundColor: 'rgba(0,0,0,0.72)',
-                  borderRadius: 18,
-                  padding: isTV ? 30 : 22,
-                  borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.08)',
+                  // Frosted-glass card: darker and rounder, with a hairline edge.
+                  backgroundColor: 'rgba(22,22,24,0.80)',
+                  borderRadius: 28,
+                  padding: isTV ? 34 : 24,
+                  borderWidth: StyleSheet.hairlineWidth * 2,
+                  borderColor: 'rgba(255,255,255,0.16)',
                   overflow: 'hidden',
+                  shadowColor: '#000',
+                  shadowOpacity: 0.5,
+                  shadowRadius: 30,
+                  shadowOffset: {width: 0, height: 14},
+                  elevation: 18,
                 },
                 shakeStyle,
               ]}>
@@ -599,9 +605,10 @@ const AuthScreen = () => {
                 <Text
                   style={{
                     color: '#fff',
-                    fontSize: 26 * fs,
-                    fontWeight: '800',
-                    marginBottom: mode === 'forgot' ? 6 : 18,
+                    fontSize: 28 * fs,
+                    fontWeight: '700',
+                    letterSpacing: -0.6,
+                    marginBottom: mode === 'forgot' ? 6 : 20,
                   }}>
                   {TITLES[mode]}
                 </Text>

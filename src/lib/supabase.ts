@@ -44,6 +44,8 @@ export interface CineHubServer {
   source_url: string;
   manifest_url: string | null;
   provider_value: string | null;
+  /** Optional logo shown on the Home server row (needs supabase/server_logo.sql). */
+  logo_url?: string | null;
   position: number;
   enabled: boolean;
   /** provider values the admin hides from users inside this server */

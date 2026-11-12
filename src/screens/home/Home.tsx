@@ -34,6 +34,7 @@ import {StatusBar} from 'expo-status-bar';
 import AppText from '../../components/ui/Text';
 import {useM3Colors} from '../../theme/M3PaletteContext';
 import ContinueWatching from '../../components/ContinueWatching';
+import ServerRow from '../../components/ServerRow';
 import StatusBarScrim from '../../components/ui/StatusBarScrim';
 import {isTV} from '../../lib/tv/constants';
 import useNavigationPreferencesStore from '../../lib/zustand/navigationPreferencesStore';
@@ -368,6 +369,7 @@ const Home = ({}: Props) => {
                     isVisible={heroVisible}
                     onOpenDrawer={openDrawer}
                   />
+                  <ServerRow />
                   {showContinueWatching && <ContinueWatching />}
                 </>
               }
