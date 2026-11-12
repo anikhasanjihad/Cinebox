@@ -202,6 +202,13 @@ export const FilledTabIcon = ({
           />
         </>
       );
+    case 'music':
+      return (
+        <Path
+          fill={color}
+          d="M18.25 3.1a1.25 1.25 0 0 1 1.5 1.22V16.5a3.5 3.5 0 1 1-2.5-3.356V6.55L9.75 8.23V18a3.5 3.5 0 1 1-2.5-3.356V6.3c0-.6.42-1.12 1.01-1.22l9.99-1.98Z"
+        />
+      );
     case 'settings':
       return (
         <Path
@@ -382,6 +389,33 @@ export const OutlineTabIcon = ({
             color={color}
             start={0.45}
             d="M4.5 16.5V19A1.5 1.5 0 0 0 6 20.5h12a1.5 1.5 0 0 0 1.5-1.5v-2.5"
+          />
+        </>
+      );
+    case 'music':
+      return (
+        <>
+          <AnimatedStrokePath
+            progress={progress}
+            color={color}
+            end={0.7}
+            d="M9 17.5V6.6l9-1.8v10.7"
+          />
+          <AnimatedStrokeCircle
+            progress={progress}
+            color={color}
+            cx={6.5}
+            cy={17.5}
+            r={2.5}
+            start={0.3}
+          />
+          <AnimatedStrokeCircle
+            progress={progress}
+            color={color}
+            cx={15.5}
+            cy={15.5}
+            r={2.5}
+            start={0.45}
           />
         </>
       );
