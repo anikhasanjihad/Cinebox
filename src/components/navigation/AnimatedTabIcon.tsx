@@ -17,6 +17,7 @@ export type AnimatedTabIconName =
   | 'watchlist'
   | 'livetv'
   | 'download'
+  | 'music'
   | 'settings';
 
 type AnimatedTabIconProps = {

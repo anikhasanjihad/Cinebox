@@ -45,7 +45,7 @@ import {validateTmdbKey} from '../../lib/tmdbHome';
 type Props = NativeStackScreenProps<SettingsStackParamList, 'AdminPanel'>;
 
 // iOS "inset grouped" look (dark appearance).
-const IOS = {
+export const IOS = {
   bg: '#000000',
   group: '#1C1C1E',
   separator: 'rgba(84,84,88,0.65)',
@@ -89,7 +89,7 @@ const hostOf = (url: string) => {
 
 /* ───────────────────────────── building blocks ───────────────────────────── */
 
-const Group = ({
+export const Group = ({
   header,
   footer,
   inset = 16,
@@ -154,7 +154,7 @@ const Group = ({
   );
 };
 
-const Badge = ({
+export const Badge = ({
   icon,
   color,
 }: {
@@ -175,7 +175,7 @@ const Badge = ({
   </View>
 );
 
-const Row = ({
+export const Row = ({
   leading,
   title,
   subtitle,
@@ -260,7 +260,7 @@ const IosSwitch = ({
   />
 );
 
-const InputRow = ({
+export const InputRow = ({
   value,
   onChangeText,
   placeholder,
@@ -301,7 +301,7 @@ const InputRow = ({
   </View>
 );
 
-const Sheet = ({
+export const Sheet = ({
   visible,
   title,
   doneLabel = 'Save',
@@ -934,6 +934,18 @@ const AdminPanel = ({navigation}: Props) => {
             value={liveValue}
             chevron
             onPress={openLive}
+          />
+        </Group>
+
+        <Group
+          header="Music"
+          inset={58}
+          footer="Upload audio files for the Music tab. Everyone sees them right away, and can download them for offline listening.">
+          <Row
+            leading={<Badge icon="library-music" color={IOS.purple} />}
+            title="Manage Music"
+            chevron
+            onPress={() => navigation.navigate('MusicAdmin')}
           />
         </Group>
 
