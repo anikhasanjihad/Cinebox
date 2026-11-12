@@ -1,7 +1,7 @@
 import {create} from 'zustand';
 import {AppState} from 'react-native';
 import type {Session, User} from '@supabase/supabase-js';
-import {supabase, CineHubProfile} from '../supabase';
+import {supabase, readStoredSession, CineHubProfile} from '../supabase';
 
 type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 
@@ -113,6 +113,15 @@ const useAuthStore = create<AuthState>((set, get) => ({
       });
     };
 
+    // Fast path: a saved session opens the app signed-in immediately. The
+    // check below then refreshes or clears it in the background, so a slow or
+    // missing network no longer holds the user on the loading screen.
+    const cached = readStoredSession();
+    if (cached) {
+      apply(cached);
+      void get().refreshProfile();
+    }
+
     try {
       // FIX: Wrap getSession() with a hard timeout so a stalled network call
       // (common on MIUI / OneUI with background battery optimisation, or on
@@ -124,14 +133,20 @@ const useAuthStore = create<AuthState>((set, get) => ({
         AUTH_INIT_TIMEOUT_MS,
         {data: {session: null}, error: new Error('auth-init-timeout')},
       );
-      apply(result.data.session);
-      if (result.data.session) {
-        // refreshProfile is non-blocking — do not await it here so it cannot
-        // extend the loading phase.
-        void get().refreshProfile();
+      // With a saved session, an error (offline, timeout) must not sign the
+      // user out: keep the saved session and retry on the next request.
+      if (!(cached && result.error)) {
+        apply(result.data.session);
+        if (result.data.session && !cached) {
+          // refreshProfile is non-blocking — do not await it here so it cannot
+          // extend the loading phase.
+          void get().refreshProfile();
+        }
       }
     } catch {
-      apply(null);
+      if (!cached) {
+        apply(null);
+      }
     }
 
     supabase.auth.onAuthStateChange((_event, session) => {

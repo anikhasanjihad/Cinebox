@@ -1,5 +1,5 @@
 import 'react-native-url-polyfill/auto';
-import {createClient} from '@supabase/supabase-js';
+import {createClient, type Session} from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import {mainStorage} from './storage/StorageService';
 
@@ -10,6 +10,27 @@ export const SUPABASE_KEY = String(extra.supabaseKey || '').trim();
 
 // Session is kept in the app's MMKV store so users stay signed in.
 const SESSION_PREFIX = 'sb-session:';
+
+/**
+ * The session supabase-js saved on disk, read synchronously. Lets the app open
+ * signed-in straight away instead of waiting for getSession(), which makes a
+ * network call when the saved access token has expired.
+ */
+export const readStoredSession = (): Session | null => {
+  try {
+    const ref = new URL(SUPABASE_URL).hostname.split('.')[0];
+    const raw = mainStorage.getString(`${SESSION_PREFIX}sb-${ref}-auth-token`);
+    if (!raw) {
+      return null;
+    }
+    const stored = JSON.parse(raw);
+    return stored?.access_token && stored?.refresh_token && stored?.user
+      ? (stored as Session)
+      : null;
+  } catch {
+    return null;
+  }
+};
 const sessionStorageAdapter = {
   getItem: (key: string): string | null =>
     mainStorage.getString(SESSION_PREFIX + key) ?? null,

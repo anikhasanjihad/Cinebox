@@ -625,11 +625,23 @@ const App = () => {
         .catch(error => console.error('Download startup failed:', error));
     };
 
+    // Not needed to draw the first screen: run it once the app has settled so
+    // low-end phones spend startup on the UI.
+    let cancelIdle: (() => void) | undefined;
+    const reconcileSoon = () => {
+      cancelIdle = scheduleWhenIdle(reconcile, 1500);
+    };
+
+    let unsubscribe: (() => void) | undefined;
     if (useDownloadsStore.persist.hasHydrated()) {
-      reconcile();
-      return;
+      reconcileSoon();
+    } else {
+      unsubscribe = useDownloadsStore.persist.onFinishHydration(reconcileSoon);
     }
-    return useDownloadsStore.persist.onFinishHydration(reconcile);
+    return () => {
+      cancelIdle?.();
+      unsubscribe?.();
+    };
   }, []);
 
   // One AppState listener and one timer. They were registered twice, so every
