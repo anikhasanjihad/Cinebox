@@ -1,6 +1,5 @@
 name: Build Cinebox Desktop
 
-# COPY THIS FILE to .github/workflows/build-desktop.yml (see desktop/README.md).
 # Windows installer (.exe) and Linux packages (.deb, .AppImage).
 # Run it from: GitHub → Actions → "Build Cinebox Desktop" → Run workflow.
 # It also runs when anything in desktop/ changes, so a broken build shows up early.
