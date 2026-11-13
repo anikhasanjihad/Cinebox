@@ -582,7 +582,7 @@ const AdminPanel = ({navigation}: Props) => {
       provider_value: draft.provider_value.trim() || null,
       enabled: draft.enabled,
       hidden_providers: draft.hidden,
-      // Only sent when used, so saving still works before server_logo.sql is run.
+      // Only sent when used, so saving still works before RUN_THIS_ONCE.sql is run.
       ...(draft.logo_url.trim()
         ? {logo_url: draft.logo_url.trim()}
         : draft.hadLogo
@@ -997,7 +997,7 @@ const AdminPanel = ({navigation}: Props) => {
             </Group>
             <Group
               header="Logo URL (optional)"
-              footer="Shown on this server's card on the Home screen. Run supabase/server_logo.sql once to enable it.">
+              footer="Shown on this server's card on the Home screen. Run supabase/RUN_THIS_ONCE.sql once to enable it.">
               <InputRow
                 value={draft.logo_url}
                 placeholder="https://…/logo.png"

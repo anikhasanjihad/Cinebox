@@ -7,6 +7,7 @@
     "skipLibCheck": true
   },
   "exclude": [
+    "desktop",
     "src/lib/sandbox/runtime",
     "scripts",
     "__tests__",
