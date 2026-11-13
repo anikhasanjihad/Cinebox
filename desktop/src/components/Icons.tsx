@@ -11,3 +11,5 @@ export const IconBack10 = () => (<svg {...p}><path d="M3 12a9 9 0 1 0 3-6.7L3 8"
 export const IconFwd10 = () => (<svg {...p}><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /><text x="8.2" y="15.2" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="700">10</text></svg>);
 export const IconVolume = () => (<svg {...p}><path d="M11 5 6 9H3v6h3l5 4z" /><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12" /></svg>);
 export const IconBookmark = ({on}: {on?: boolean}) => (<svg {...p} fill={on ? 'currentColor' : 'none'}><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" /></svg>);
+export const IconLive = () => (<svg {...p}><rect x="3" y="6" width="18" height="13" rx="3" /><path d="m8 2.5 4 3.5 4-3.5" /></svg>);
+export const IconDownload = () => (<svg {...p}><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 20h14" /></svg>);

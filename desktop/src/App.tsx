@@ -9,6 +9,8 @@ import Library from './pages/Library';
 import Settings from './pages/Settings';
 import Info from './pages/Info';
 import Player from './pages/Player';
+import LiveTv from './pages/LiveTv';
+import Downloads from './pages/Downloads';
 
 const Shell = () => {
   const {session, ready} = useAuth();
@@ -39,7 +41,10 @@ export default function App() {
             <Route index element={<Home />} />
             <Route path="search" element={<Search />} />
             <Route path="library" element={<Library />} />
+            <Route path="live" element={<LiveTv />} />
+            <Route path="downloads" element={<Downloads />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="settings/:section" element={<Settings />} />
             <Route path="info" element={<Info />} />
             <Route path="watch" element={<Player />} />
             <Route path="*" element={<Navigate to="/" replace />} />

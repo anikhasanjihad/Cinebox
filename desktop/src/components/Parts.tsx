@@ -1,28 +1,36 @@
 import {useRef, type ReactNode} from 'react';
 import {NavLink} from 'react-router-dom';
 import type {Post, Provider} from '../provider/types';
-import {IconHome, IconLibrary, IconSearch, IconSettings} from './Icons';
+import {IconDownload, IconHome, IconLibrary, IconLive, IconSearch, IconSettings} from './Icons';
+import {useSettings} from '../lib/settings';
 
-export const Sidebar = () => (
-  <nav className="sidebar">
-    <img className="brand" src="/logo.png" alt="Cinebox" />
-    {[
-      ['/', 'Home', <IconHome />],
-      ['/search', 'Search', <IconSearch />],
-      ['/library', 'Library', <IconLibrary />],
-    ].map(([to, label, icon]) => (
-      <NavLink key={to as string} to={to as string} end className={({isActive}) => `navlink press${isActive ? ' active' : ''}`}>
-        {icon as ReactNode}
-        {label as string}
+export const Sidebar = () => {
+  const st = useSettings();
+  const items: Array<[string, string, ReactNode]> = [
+    ['/', 'Home', <IconHome />],
+    ['/search', 'Search', <IconSearch />],
+    ['/live', 'Live TV', <IconLive />],
+    ['/library', 'Library', <IconLibrary />],
+  ];
+  if (!st.hideDownloads) items.push(['/downloads', 'Downloads', <IconDownload />]);
+  const cls = ({isActive}: {isActive: boolean}) => `navlink press${isActive ? ' active' : ''}${st.sidebarLabels ? '' : ' nolabel'}`;
+  return (
+    <nav className="sidebar">
+      <img className="brand" src="/logo.png" alt="Cinebox" />
+      {items.map(([to, label, icon]) => (
+        <NavLink key={to} to={to} end={to === '/'} className={cls} title={label}>
+          {icon}
+          {label}
+        </NavLink>
+      ))}
+      <div className="spacer" />
+      <NavLink to="/settings" className={cls} title="Settings">
+        <IconSettings />
+        Settings
       </NavLink>
-    ))}
-    <div className="spacer" />
-    <NavLink to="/settings" className={({isActive}) => `navlink press${isActive ? ' active' : ''}`}>
-      <IconSettings />
-      Settings
-    </NavLink>
-  </nav>
-);
+    </nav>
+  );
+};
 
 export const PosterCard = ({post, onOpen}: {post: Post; onOpen: (p: Post) => void}) => (
   <button className="poster" onClick={() => onOpen(post)} title={post.title}>

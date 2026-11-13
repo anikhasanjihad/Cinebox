@@ -4,8 +4,9 @@ import {useServers} from '../store/servers';
 import {providerApi} from '../provider/manager';
 import type {EpisodeLink, Info as InfoT} from '../provider/types';
 import {inLibrary, toggleLibrary} from '../lib/storage';
+import {startDownload} from '../lib/downloads';
 import {Message} from '../components/Parts';
-import {IconBack, IconBookmark, IconPlay} from '../components/Icons';
+import {IconBack, IconBookmark, IconDownload, IconPlay} from '../components/Icons';
 
 interface Item { title: string; link: string; type: string }
 
@@ -22,6 +23,7 @@ export default function Info() {
   const [tab, setTab] = useState(0);
   const [eps, setEps] = useState<EpisodeLink[] | null>(null);
   const [epError, setEpError] = useState('');
+  const [note, setNote] = useState('');
   const [saved, setSaved] = useState(() => inLibrary(link, providerKey));
 
   useEffect(() => {
@@ -47,8 +49,19 @@ export default function Info() {
     return (eps ?? []).map(e => ({title: e.title, link: e.link, type: 'series'}));
   }, [current, eps, info?.type]);
 
-  const play = (it: Item) =>
-    nav('/watch', {state: {providerKey, link: it.link, type: it.type, title: `${info?.title ?? ''}${items.length > 1 ? ` — ${it.title}` : ''}`, back: `/info?p=${encodeURIComponent(providerKey)}&link=${encodeURIComponent(link)}`}});
+  const img0 = info?.image || info?.poster || '';
+  const play = (it: Item, index = items.indexOf(it)) =>
+    nav('/watch', {state: {
+      providerKey, link: it.link, type: it.type, image: img0, infoLink: link,
+      title: `${info?.title ?? ''}${items.length > 1 ? ` — ${it.title}` : ''}`,
+      queue: items.map(x => ({title: `${info?.title ?? ''} — ${x.title}`, link: x.link, type: x.type})), index,
+      back: `/info?p=${encodeURIComponent(providerKey)}&link=${encodeURIComponent(link)}`,
+    }});
+  const download = (it: Item) => {
+    if (!provider) return;
+    startDownload(provider, {title: `${info?.title ?? ''}${items.length > 1 ? ` - ${it.title}` : ''}`, image: img0, link: it.link, type: it.type});
+    setNote(`Added “${it.title}” to Downloads`);
+  };
 
   if (!provider) return <Message title={providers.length ? 'Server not found' : 'Loading…'} action={<button className="btn glass press" onClick={() => nav('/')}>Home</button>} />;
   if (error) return <Message title="Could not load this title" text={error} action={<button className="btn glass press" onClick={() => nav(-1)}>Back</button>} />;
@@ -75,6 +88,7 @@ export default function Info() {
           <p className="muted" style={{lineHeight: 1.55, maxWidth: 720, fontSize: 15.5, userSelect: 'text'}}>{info.synopsis}</p>
           <div style={{display: 'flex', gap: 12, margin: '20px 0'}}>
             <button className="btn primary press" disabled={!items.length} onClick={() => items[0] && play(items[0])}><IconPlay /> {isSeries ? 'Play first episode' : 'Play'}</button>
+            {items.length === 1 && <button className="btn glass press" onClick={() => download(items[0])}><IconDownload /> Download</button>}
             <button className="btn glass press" onClick={() => setSaved(toggleLibrary({title: info.title, link, image: img, providerKey}))}>
               <IconBookmark on={saved} /> {saved ? 'Saved' : 'Save'}
             </button>
@@ -86,14 +100,18 @@ export default function Info() {
               ))}
             </div>
           )}
+          {note && <p className="ok">{note}</p>}
           {isSeries && !eps && !epError && <div className="spin" style={{margin: '24px 0', width: 30, height: 30}} />}
           {epError && <p className="err">{epError}</p>}
           {(items.length > 1 || isSeries) && (
             <div className="eps">
               {items.map((it, i) => (
-                <button key={it.link + i} className="ep press" onClick={() => play(it)}>
-                  <span className="n">{i + 1}</span><span className="t">{it.title}</span><IconPlay />
-                </button>
+                <div key={it.link + i} style={{display: 'flex', gap: 8}}>
+                  <button className="ep press" style={{flex: 1}} onClick={() => play(it, i)}>
+                    <span className="n">{i + 1}</span><span className="t">{it.title}</span><IconPlay />
+                  </button>
+                  <button className="ep press" style={{flex: '0 0 auto'}} onClick={() => download(it)} title="Download" aria-label="Download"><IconDownload /></button>
+                </div>
               ))}
             </div>
           )}

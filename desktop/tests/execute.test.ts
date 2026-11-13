@@ -63,3 +63,17 @@ describe('sources', () => {
     expect(getProviderFilesUrl(s.url, 'film', '/providers/film')).toBe(`${s.url}/providers/film`);
   });
 });
+
+import {cueAt, parseSubtitles} from '../src/player/subtitles';
+describe('subtitles', () => {
+  it('reads srt and vtt, strips tags, finds the cue at a time', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:03,500\n<i>Hello</i>\n\n2\n00:01:00,000 --> 00:01:02,000\nSecond\nline\n';
+    const cues = parseSubtitles(srt);
+    expect(cues).toHaveLength(2);
+    expect(cueAt(cues, 2)?.text).toBe('Hello');
+    expect(cueAt(cues, 30)).toBeNull();
+    expect(cueAt(cues, 61)?.text).toBe('Second\nline');
+    const vtt = 'WEBVTT\n\n00:05.000 --> 00:07.000 align:start\nHi there\n';
+    expect(parseSubtitles(vtt)[0]).toEqual({start: 5, end: 7, text: 'Hi there'});
+  });
+});
