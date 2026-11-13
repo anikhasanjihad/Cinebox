@@ -103,3 +103,11 @@ export const providerApi = {
   streams: async (p: Provider, link: string, type: string) =>
     asArray<Stream>(await invokeProvider(await need(p, 'stream'), 'getStream', {link, type, isDownload: false}, p.scope), 'stream'),
 };
+
+/** Providers a server's source offers (for the Admin "Disable providers" list). */
+export const fetchManifestProviders = async (server: {source_url: string; manifest_url?: string | null}) => {
+  const source = createProviderSource(server.source_url);
+  const manifestUrl = server.manifest_url?.trim() || source.manifestUrl || `${source.url}/manifest.json`;
+  const manifest = JSON.parse(await getText(`${manifestUrl}${manifestUrl.includes('?') ? '&' : '?'}t=${Date.now()}`));
+  return (Array.isArray(manifest) ? manifest : []).filter((p: any) => p && !p.disabled).map((p: any) => ({value: String(p.value), name: String(p.display_name || p.value), type: String(p.type || '')}));
+};

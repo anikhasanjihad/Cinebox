@@ -9,6 +9,7 @@ import Library from './pages/Library';
 import Settings from './pages/Settings';
 import Info from './pages/Info';
 import Player from './pages/Player';
+import Intro from './components/Intro';
 import LiveTv from './pages/LiveTv';
 import Downloads from './pages/Downloads';
 
@@ -35,6 +36,7 @@ const Shell = () => {
 export default function App() {
   return (
     <AuthProvider>
+      <Intro />
       <HashRouter>
         <Routes>
           <Route element={<Shell />}>
