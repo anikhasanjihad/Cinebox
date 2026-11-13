@@ -425,6 +425,10 @@ export const useHeroRotation = (
   const linksKey = posts.map(post => post.link).join('\n');
   const firstLink = posts[0]?.link || '';
   const [index, setIndex] = useState(0);
+  // Which way the last change went, and how many changes happened, so the hero can slide
+  // the right way (and stay still on first load).
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const [rotations, setRotations] = useState(0);
   const [readyLinks, setReadyLinks] = useState<string[]>([]);
 
   const firstQuery = useHeroMetadata(firstLink, providerValue);
@@ -435,6 +439,8 @@ export const useHeroRotation = (
 
   useEffect(() => {
     setIndex(0);
+    setDirection(1);
+    setRotations(0);
     setReadyLinks(firstLink ? [firstLink] : []);
   }, [linksKey, firstLink, providerValue]);
 
@@ -462,11 +468,13 @@ export const useHeroRotation = (
 
   // Moves to the next (1) or previous (-1) hero that has loaded.
   const step = useCallback(
-    (direction: 1 | -1) => {
+    (stepDirection: 1 | -1) => {
+      setDirection(stepDirection);
+      setRotations(count => count + 1);
       setIndex(current => {
         for (let offset = 1; offset <= posts.length; offset++) {
           const next =
-            (current + direction * offset + posts.length * offset) %
+            (current + stepDirection * offset + posts.length * offset) %
             posts.length;
           if (readyLinks.includes(posts[next].link)) {
             return next;
@@ -493,5 +501,7 @@ export const useHeroRotation = (
     activeIndex,
     readyLinks,
     step,
+    direction,
+    rotations,
   };
 };

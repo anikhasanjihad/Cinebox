@@ -4,7 +4,7 @@ import {useServers} from '../store/servers';
 import {providerApi} from '../provider/manager';
 import type {Catalog, Post} from '../provider/types';
 import {Message, PosterRow, ServerRow} from '../components/Parts';
-import {IconPlay} from '../components/Icons';
+import HeroSlider from '../components/HeroSlider';
 import {load} from '../lib/storage';
 import {useSettings} from '../lib/settings';
 
@@ -44,26 +44,21 @@ export default function Home() {
     return <Message title="No servers yet" text={error || 'Ask the admin to add a server in the CineHub app.'} action={<button className="btn glass press" onClick={reload}>Try again</button>} />;
   }
 
-  const first = catalog?.length ? rows[catalog[0].title] : undefined;
-  const hero = Array.isArray(first) ? first.find(p => p.image) : undefined;
+  // Heroes come from the first row that has finished loading with pictures, so the list
+  // does not reshuffle while the other rows are still arriving.
+  let heroes: Post[] = [];
+  for (const c of catalog ?? []) {
+    const r = rows[c.title];
+    if (r === undefined) break;
+    if (Array.isArray(r)) {
+      const withImage = r.filter(p => p.image);
+      if (withImage.length) { heroes = withImage.slice(0, 6); break; }
+    }
+  }
 
   return (
     <div className="page">
-      {hero ? (
-        <header className="hero">
-          <div className="hero-bg" style={{backgroundImage: `url("${hero.image}")`}} />
-          <div className="hero-body">
-            <div className="muted" style={{fontWeight: 600, marginBottom: 8}}>{active?.name}</div>
-            <h1 className="title-xl">{hero.title}</h1>
-            <div style={{display: 'flex', gap: 12, marginTop: 22}}>
-              <button className="btn primary press" onClick={() => open(hero)}><IconPlay /> Play</button>
-              <button className="btn glass press" onClick={() => open(hero)}>More info</button>
-            </div>
-          </div>
-        </header>
-      ) : (
-        <div style={{height: 56}} />
-      )}
+      {heroes.length ? <HeroSlider posts={heroes} label={active?.name} onOpen={open} /> : <div style={{height: 56}} />}
       <ServerRow providers={providers} active={active} onSelect={select} />
       {settings.showContinue && resume.length > 0 && (
         <PosterRow title="Continue watching" posts={resume.map(r => ({title: r.title, image: r.image, link: `${r.providerKey}\u0001${r.link}`}))}

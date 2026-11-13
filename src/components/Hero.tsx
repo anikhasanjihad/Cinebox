@@ -22,8 +22,15 @@ import {extractImageAccent} from '../lib/imageAccent';
 import LinearGradient from 'react-native-linear-gradient';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   FadeIn,
   FadeInDown,
+  FadeInLeft,
+  FadeInRight,
+  FadeOut,
+  LinearTransition,
+  SlideInLeft,
+  SlideInRight,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -263,6 +270,8 @@ const Hero = memo(
       activeIndex,
       readyLinks,
       step,
+      direction,
+      rotations,
     } = useHeroRotation(
       heroes,
       provider.value,
@@ -304,6 +313,21 @@ const Hero = memo(
       opacity: 1 - Math.min(Math.abs(dragX.get()) / 300, 0.35),
       transform: [{translateX: dragX.get()}],
     }));
+    // Heroes slide in from the side they move towards (swipe left = next, from the right).
+    // The very first hero only fades in, so nothing moves while the page is still loading.
+    const rotated = rotations > 0;
+    const slideIn = rotated
+      ? (direction === 1 ? SlideInRight : SlideInLeft)
+          .duration(520)
+          .easing(Easing.out(Easing.cubic))
+      : undefined;
+    const slideOut = rotated ? FadeOut.duration(480) : undefined;
+    const textIn = rotated
+      ? (direction === 1 ? FadeInRight : FadeInLeft)
+          .duration(420)
+          .delay(160)
+      : FadeIn.duration(350);
+    const textOut = rotated ? FadeOut.duration(150) : undefined;
     const {data: heroData, error} = useHeroMetadata(
       hero?.link || '',
       provider.value,
@@ -493,6 +517,18 @@ const Hero = memo(
             overflow: 'hidden',
           }}>
           <Animated.View style={[{position: 'absolute', inset: 0}, dragStyle]}>
+            <Animated.View
+              key={hero?.link || 'empty'}
+              entering={slideIn}
+              exiting={slideOut}
+              style={{
+                backgroundColor: colors.surfaceContainerHighest,
+                bottom: 0,
+                left: 0,
+                position: 'absolute',
+                right: 0,
+                top: 0,
+              }}>
             {!imageUri ? (
               <View
                 style={{
@@ -510,7 +546,7 @@ const Hero = memo(
             ) : (
               <Animated.Image
                 key={imageUri}
-                entering={FadeIn.duration(450)}
+                entering={rotated ? undefined : FadeIn.duration(450)}
                 source={imageSource}
                 onLoad={updateSearchButtonColor}
                 resizeMode="cover"
@@ -527,6 +563,7 @@ const Hero = memo(
                 }}
               />
             )}
+            </Animated.View>
           </Animated.View>
 
           <LinearGradient
@@ -557,7 +594,8 @@ const Hero = memo(
               ]}>
               <Animated.View
                 key={`poster-${imageUri}`}
-                entering={FadeIn.duration(450)}
+                entering={rotated ? slideIn : FadeIn.duration(450)}
+                exiting={slideOut}
                 style={{
                   aspectRatio: 2 / 3,
                   borderRadius: 12,
@@ -632,7 +670,8 @@ const Hero = memo(
             {textReady ? (
               <Animated.View
                 key={hero?.link || 'empty'}
-                entering={FadeIn.duration(350)}
+                entering={textIn}
+                exiting={textOut}
                 style={{alignItems: 'center', width: '100%'}}>
                 {heroData?.logo && !logoFailed ? (
                   <Image
@@ -728,9 +767,10 @@ const Hero = memo(
           {/* The dots sit below the title block so they never take space from
             the poster. */}
           {readyLinks.length > 1 ? (
-            <View
+            <Animated.View
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
+              layout={LinearTransition.duration(300)}
               style={{
                 alignSelf: 'center',
                 bottom: 9,
@@ -740,8 +780,9 @@ const Hero = memo(
               }}>
               {heroes.map((post, index) =>
                 readyLinks.includes(post.link) ? (
-                  <View
+                  <Animated.View
                     key={post.link}
+                    layout={LinearTransition.duration(300)}
                     style={{
                       backgroundColor:
                         index === activeIndex
@@ -754,7 +795,7 @@ const Hero = memo(
                   />
                 ) : null,
               )}
-            </View>
+            </Animated.View>
           ) : null}
 
           {/* Full-screen Search Overlay with Auto-completion Suggestions */}
