@@ -41,7 +41,7 @@ export default function Home() {
 
   if (loading && providers.length === 0) return <Message title="Loading servers…" />;
   if (!providers.length) {
-    return <Message title="No servers yet" text={error || 'Ask the admin to add a server in the Cinebox app.'} action={<button className="btn glass press" onClick={reload}>Try again</button>} />;
+    return <Message title="No servers yet" text={error || 'Ask the admin to add a server in the CineHub app.'} action={<button className="btn glass press" onClick={reload}>Try again</button>} />;
   }
 
   const first = catalog?.length ? rows[catalog[0].title] : undefined;

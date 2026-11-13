@@ -1,7 +1,7 @@
-name: Build Cinebox Desktop
+name: Build CineHub Desktop
 
 # Windows installer (.exe) and Linux packages (.deb, .AppImage).
-# Run it from: GitHub → Actions → "Build Cinebox Desktop" → Run workflow.
+# Run it from: GitHub → Actions → "Build CineHub Desktop" → Run workflow.
 # It also runs when anything in desktop/ changes, so a broken build shows up early.
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
       - '.github/workflows/build-desktop.yml'
 
 concurrency:
-  group: build-cinebox-desktop-${{ github.ref }}
+  group: build-cinehub-desktop-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,10 +22,10 @@ jobs:
         include:
           - os: windows-latest
             bundles: nsis,msi
-            artifact: cinebox-windows
+            artifact: cinehub-windows
           - os: ubuntu-22.04
             bundles: deb,appimage
-            artifact: cinebox-linux
+            artifact: cinehub-linux
     runs-on: ${{ matrix.os }}
     defaults:
       run:

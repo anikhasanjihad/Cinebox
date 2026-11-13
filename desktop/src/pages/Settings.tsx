@@ -8,15 +8,11 @@ import {fetchManifestProviders} from '../provider/manager';
 import {fetchLiveSources, LIVE_KEY} from './LiveTv';
 import {Cell, Group, Page, Pick, Range, Toggle} from '../components/Controls';
 import {PLAYBACK_SPEEDS, PLAYER_CONTROLS} from './Player';
+import WatchTogether from './WatchTogether';
 
 const ACCENTS = ['#FFFFFF', '#FF6347', '#9E9E9E', '#2196F3', '#B2A4D4']; // same choices as the mobile app (White, Tomato, Gray, Blue, Lavender)
 const AVATARS = ['#E50914', '#F5A623', '#46D369', '#00B8A9', '#2D9CDB', '#9B51E0', '#EB5757', '#8A8A8A'];
 const CHEVRON = <span className="muted" style={{fontSize: 20}}>›</span>;
-
-/** A row for a phone-only option. It stays visible so nothing is hidden, but cannot be changed here. */
-const NA = ({label, hint}: {label: string; hint: string}) => (
-  <div style={{opacity: 0.45}}><Cell label={label} hint={`${hint} · Not available on desktop`}><Toggle value={false} onChange={() => {}} /></Cell></div>
-);
 
 interface Profile { display_name: string | null; role: string; avatar_color?: string | null }
 const useProfile = () => {
@@ -36,7 +32,7 @@ export default function Settings() {
   const nav = useNavigate();
   const back = () => nav('/settings');
   if (section) {
-    const P = {account: Account, appearance: Appearance, player: PlayerSettings, subtitles: Subtitles, controls: Controls, preferences: Preferences, about: About, admin: Admin}[section];
+    const P = {account: Account, appearance: Appearance, player: PlayerSettings, subtitles: Subtitles, controls: Controls, preferences: Preferences, about: About, admin: Admin, party: WatchTogether}[section];
     if (P) return <P back={back} />;
   }
   return <Index />;
@@ -59,7 +55,7 @@ function Index() {
     const data: Record<string, unknown> = {};
     BACKUP_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v != null) data[k] = JSON.parse(v); });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify({app: 'cinebox-desktop', version: 1, data}, null, 2)], {type: 'application/json'}));
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({app: 'cinehub-desktop', version: 1, data}, null, 2)], {type: 'application/json'}));
     a.download = `cinehub-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click(); URL.revokeObjectURL(a.href);
     setMsg('Backup saved to your Downloads folder.');
@@ -67,7 +63,7 @@ function Index() {
   const importBackup = async (f: File) => {
     try {
       const j = JSON.parse(await f.text());
-      if (j?.app !== 'cinebox-desktop' || typeof j.data !== 'object') throw new Error('This is not a CineHub desktop backup');
+      if ((j?.app !== 'cinehub-desktop' && j?.app !== 'cinebox-desktop') || typeof j.data !== 'object') throw new Error('This is not a CineHub desktop backup');
       if (!confirm('Restore backup? This replaces your settings, library and progress on this computer.')) return;
       BACKUP_KEYS.forEach(k => { if (k in j.data) localStorage.setItem(k, JSON.stringify(j.data[k])); });
       setMsg('Backup restored. Restarting…'); setTimeout(() => location.reload(), 700);
@@ -86,13 +82,8 @@ function Index() {
         <Cell label={name} hint={session?.user.email} onClick={go('account')}><Avatar name={name} color={profile?.avatar_color} />{CHEVRON}</Cell>
         {profile?.role === 'admin' && <Cell label="Admin Panel" hint="Add and manage servers" onClick={go('admin')}>{CHEVRON}</Cell>}
       </Group>
-      <Group title="Network" footer="Secure DNS, WARP and ByeDPI are Android features. On desktop your operating system's network settings apply.">
-        <NA label="Secure DNS (DoH)" hint="Private DNS lookups" />
-        <NA label="Cloudflare WARP" hint="Route traffic through WARP" />
-        <NA label="ByeDPI" hint="Bypass network blocks" />
-      </Group>
       <Group>
-        <NA label="Watch Together" hint="Watch in sync with friends" />
+        <Cell label="Watch Together" hint="Watch in sync with friends" onClick={go('party')}>{CHEVRON}</Cell>
         <Cell label="Appearance" onClick={go('appearance')}>{CHEVRON}</Cell>
         <Cell label="Player settings" onClick={go('player')}>{CHEVRON}</Cell>
         <Cell label="Downloads" onClick={() => nav('/downloads')}>{CHEVRON}</Cell>
@@ -155,17 +146,13 @@ const PlayerSettings = ({back}: {back: () => void}) => {
   return (
     <Page title="Player settings" back={back}>
       <Group title="Playback">
-        <NA label="Open videos from other apps" hint="Show CineHub in Open with" />
         <Cell label="Ask for local file first" hint="Before loading online streams, offer to play a video file from this computer"><Toggle value={s.askLocal} onChange={v => updateSettings({askLocal: v})} /></Cell>
-        <NA label="Always cast mode" hint="Stream directly to TV" />
-        <NA label="External player" hint="Open streams in your preferred video app" />
         <Cell label="Notification media controls" hint="Use keyboard media keys and system media controls"><Toggle value={s.mediaKeys} onChange={v => updateSettings({mediaKeys: v})} /></Cell>
         <Cell label="Hide seek buttons"><Toggle value={s.hideSeek} onChange={v => updateSettings({hideSeek: v})} /></Cell>
         <Cell label="Seek interval" hint="Used by double click, seek buttons and arrow keys"><Pick value={s.seekInterval} onChange={v => updateSettings({seekInterval: v})} options={[[5, '5 seconds'], [10, '10 seconds'], [15, '15 seconds'], [30, '30 seconds']]} /></Cell>
         <Cell label="Auto play next episode" hint="Start the next episode after a short countdown"><Toggle value={s.autoPlayNext} onChange={v => updateSettings({autoPlayNext: v})} /></Cell>
         <Cell label="Swipe gestures" hint="Mouse wheel changes volume, double click skips and toggles full screen"><Toggle value={s.mouseGestures} onChange={v => updateSettings({mouseGestures: v})} /></Cell>
         <Cell label="Volume boost" hint="Allow volume up to 200% on streamed sources"><Toggle value={s.volumeBoost} onChange={v => updateSettings({volumeBoost: v})} /></Cell>
-        <NA label="Download full torrent" hint="Download the whole torrent" />
       </Group>
       <Group title="Picture and sound">
         <Cell label="Default video fit"><Pick value={s.resize} onChange={v => updateSettings({resize: v})} options={[['none', 'Fit'], ['cover', 'Cover'], ['stretch', 'Stretch'], ['contain', 'Contain']]} /></Cell>
@@ -187,7 +174,7 @@ const Controls = ({back}: {back: () => void}) => {
   const reset = () => updateSettings({hiddenControls: [], ctlLabels: 'full', ctlAlign: 'distributed', ctlBg: 0, ctlScale: 1, seekbarScale: 1, titleBg: false});
   return (
     <Page title="Player controls" back={back}>
-      <Group title="Buttons" footer="Cast and decoder buttons are phone only.">
+      <Group title="Buttons">
         {PLAYER_CONTROLS.map(([id, label]) => (
           <Cell key={id} label={label}><Toggle value={!s.hiddenControls.includes(id)} onChange={on => updateSettings({hiddenControls: on ? s.hiddenControls.filter(x => x !== id) : [...s.hiddenControls, id]})} /></Cell>
         ))}
@@ -232,13 +219,9 @@ const Preferences = ({back}: {back: () => void}) => {
   return (
     <Page title="Preferences" back={back}>
       <Group>
-        <NA label="Haptic feedback" hint="Use subtle vibration for actions" />
         <Cell label="Tab bar labels" hint="Show destination names below navigation icons"><Toggle value={s.sidebarLabels} onChange={v => updateSettings({sidebarLabels: v})} /></Cell>
         <Cell label="Hide downloads tab"><Toggle value={s.hideDownloads} onChange={v => updateSettings({hideDownloads: v})} /></Cell>
-        <NA label="Hamburger menu" hint="Server drawer button" />
         <Cell label="Continue watching" hint="Show the Continue watching row on Home. Playback positions are still saved."><Toggle value={s.showContinue} onChange={v => updateSettings({showContinue: v})} /></Cell>
-        <NA label="Disable drawer" hint="Server drawer" />
-        <NA label="External downloader" hint="Send every download to another app" />
         <div style={{opacity: 0.45}}><Cell label="Skip in-app webview" hint="Web links always open in your default browser on desktop"><Toggle value={true} onChange={() => {}} /></Cell></div>
         <Cell label="Usage and crash reports" hint="CineHub Desktop does not collect diagnostics"><Toggle value={s.telemetry} onChange={v => updateSettings({telemetry: v})} /></Cell>
       </Group>
@@ -257,7 +240,7 @@ const About = ({back}: {back: () => void}) => (
     </div>
     <Group>
       <Cell label="Platform">{<span className="muted">{navigator.userAgent.includes('Windows') ? 'Windows' : navigator.userAgent.includes('Linux') ? 'Linux' : 'Desktop'}</span>}</Cell>
-      <Cell label="Downloads folder">{<span className="muted">Downloads/Cinebox</span>}</Cell>
+      <Cell label="Downloads folder">{<span className="muted">Downloads/CineHub</span>}</Cell>
     </Group>
   </Page>
 );

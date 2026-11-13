@@ -16,7 +16,7 @@ export const Sidebar = () => {
   const cls = ({isActive}: {isActive: boolean}) => `navlink press${isActive ? ' active' : ''}${st.sidebarLabels ? '' : ' nolabel'}`;
   return (
     <nav className="sidebar">
-      <img className="brand" src="/logo.png" alt="Cinebox" />
+      <img className="brand" src="/logo.png" alt="CineHub" />
       {items.map(([to, label, icon]) => (
         <NavLink key={to} to={to} end={to === '/'} className={cls} title={label}>
           {icon}

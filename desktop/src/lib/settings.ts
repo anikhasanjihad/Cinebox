@@ -36,6 +36,8 @@ export interface Settings {
   volumeBoost: boolean;
   ambient: boolean;
   hiddenControls: string[];
+  /** HLS decoding: auto, system player (hardware when available) or hls.js (software). */
+  decoder: 'auto' | 'hardware' | 'software';
 }
 
 export const DEFAULTS: Settings = {
@@ -72,6 +74,7 @@ export const DEFAULTS: Settings = {
   volumeBoost: true,
   ambient: true,
   hiddenControls: [],
+  decoder: 'auto',
 };
 
 let state: Settings = {...DEFAULTS, ...load<Partial<Settings>>('settings', {})};

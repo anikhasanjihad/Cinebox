@@ -1,11 +1,11 @@
 [package]
-name = "cinebox-desktop"
+name = "cinehub-desktop"
 version = "1.0.0"
-description = "Cinebox desktop"
+description = "CineHub desktop"
 edition = "2021"
 
 [lib]
-name = "cinebox_desktop_lib"
+name = "cinehub_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

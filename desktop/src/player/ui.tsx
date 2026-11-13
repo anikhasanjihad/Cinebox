@@ -17,6 +17,9 @@ export const ICON: Record<string, ReactNode> = {
   unlock: <Svg><rect x="5" y="11" width="14" height="9" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 7.5-2" /></Svg>,
   volume: <Svg><path d="M11 5 6 9H3v6h3l5 4z" /><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12" /></Svg>,
   mute: <Svg><path d="M11 5 6 9H3v6h3l5 4z" /><path d="m16 9 5 6M21 9l-5 6" /></Svg>,
+  cast: <Svg><path d="M3 8V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5" /><path d="M3 12a8 8 0 0 1 8 8M3 16a4 4 0 0 1 4 4" /><circle cx="3.5" cy="20" r="1" fill="currentColor" /></Svg>, // cast
+  decoder: <Svg><rect x="6" y="6" width="12" height="12" rx="2" /><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" /></Svg>, // chip
+  party: <Svg><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0 1 12 0" /><circle cx="17" cy="9" r="2.4" /><path d="M16 14.2a5 5 0 0 1 5 5.3" /></Svg>, // account-group
   check: <Svg><path d="m5 12 5 5 9-10" /></Svg>,
 };
 

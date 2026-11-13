@@ -44,7 +44,7 @@ interface Sink { write(b: Uint8Array): Promise<void>; close(): Promise<void> }
 const openSink = async (title: string, ext: string): Promise<{sink: Sink; path: string}> => {
   const {downloadDir, join} = await import('@tauri-apps/api/path');
   const fs = await import('@tauri-apps/plugin-fs');
-  const dir = await join(await downloadDir(), 'Cinebox');
+  const dir = await join(await downloadDir(), 'CineHub');
   await fs.mkdir(dir, {recursive: true}).catch(() => {});
   let path = await join(dir, `${safe(title)}.${ext}`);
   if (await fs.exists(path).catch(() => false)) path = await join(dir, `${safe(title)} ${Date.now()}.${ext}`);

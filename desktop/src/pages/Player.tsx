@@ -12,6 +12,8 @@ import {cueAt, parseSubtitles, type Cue} from '../player/subtitles';
 import {IconBack, IconBack10, IconFull, IconFwd10, IconPause, IconPlay} from '../components/Icons';
 import {DelayControl, ICON, Sheet, SheetRow, SectionLabel} from '../player/ui';
 import {Toggle} from '../components/Controls';
+import {castPause, castPlay, castResume, castStop, castSupported, discoverDevices, type CastDevice} from '../lib/cast';
+import {partyApi, useParty} from '../lib/party';
 
 interface QueueItem { title: string; link: string; type: string }
 interface State {
@@ -20,7 +22,7 @@ interface State {
   direct?: {url: string; headers?: Record<string, string>; live?: boolean};
   local?: {url: string};
 }
-type Tab = 'audio' | 'subtitle' | 'speed' | 'server' | 'resize' | 'sleep' | 'more' | 'volume' | null;
+type Tab = 'audio' | 'subtitle' | 'speed' | 'server' | 'resize' | 'sleep' | 'more' | 'volume' | 'cast' | 'decoder' | 'party' | null;
 
 const fmt = (s: number) => {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -32,7 +34,7 @@ const inTauri = () => '__TAURI_INTERNALS__' in window;
 // Same controls, order and labels as the phone player.
 export const PLAYER_CONTROLS: Array<[string, string]> = [
   ['sleep', 'Sleep timer'], ['lock', 'Lock player'], ['audio', 'Audio'], ['subtitle', 'Subtitles'], ['speed', 'Playback speed'],
-  ['pip', 'Picture in picture'], ['server', 'Server and quality'], ['resize', 'Video fit'], ['episodes', 'Episodes'], ['next', 'Next episode'], ['settings', 'Settings'],
+  ['pip', 'Picture in picture'], ['cast', 'Cast'], ['decoder', 'Decoder'], ['server', 'Server and quality'], ['resize', 'Video fit'], ['episodes', 'Episodes'], ['next', 'Next episode'], ['settings', 'Settings'],
 ];
 export const PLAYBACK_SPEEDS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.35, 1.5, 1.75, 2];
 export const FIT_MODES = [['none', 'Fit'], ['cover', 'Cover'], ['stretch', 'Stretch'], ['contain', 'Contain']] as const;
@@ -101,6 +103,18 @@ export default function Player() {
   const [askLocal, setAskLocal] = useState(false);
   const localPick = useRef<HTMLInputElement>(null);
   const pickedLocal = useRef('');
+  const resumeAt = useRef<number | null>(null);
+  // Cast (DLNA / UPnP devices on the local network)
+  const [devices, setDevices] = useState<CastDevice[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [casting, setCasting] = useState<CastDevice | null>(null);
+  const castRef = useRef<CastDevice | null>(null);
+  // Watch Together
+  const party = useParty();
+  const inRoom = Boolean(party.code) && party.status === 'connected';
+  const [armed, setArmed] = useState(false);
+  const mutedUntil = useRef(0);
+  const [chatText, setChatText] = useState('');
 
   const q = st?.queue; const qi = st?.index ?? 0;
   const next = q && qi + 1 < q.length ? q[qi + 1] : undefined;
@@ -177,9 +191,17 @@ export default function Player() {
     setBusy(true); setError(''); setLevels([]); setLevel(-1); setAudioTracks([]); setAudioIdx(0);
     hls.current?.destroy(); hls.current = null;
     const saved = settings.rememberPosition && !live ? load<Record<string, {t: number; d: number}>>('progress', {})[progressId] : undefined;
-    const resume = () => { if (saved && saved.d - saved.t > 20 && saved.t > 5) el.currentTime = saved.t; el.playbackRate = speed; };
+    const resume = () => {
+      if (resumeAt.current != null) { el.currentTime = resumeAt.current; resumeAt.current = null; }
+      else if (saved && saved.d - saved.t > 20 && saved.t > 5) el.currentTime = saved.t;
+      el.playbackRate = speed;
+    };
     const isHls = /m3u8/i.test(stream.type) || /\.m3u8(\?|$)/i.test(stream.link);
-    if (isHls && Hls.isSupported()) {
+    // Decoder: "hardware" prefers the system player when it can play HLS itself, "software" forces hls.js.
+    const systemHls = Boolean(el.canPlayType('application/vnd.apple.mpegurl'));
+    if (isHls && settings.decoder === 'hardware' && !systemHls) say('The system player cannot play this stream. Using the software decoder.');
+    const useHlsJs = isHls && Hls.isSupported() && !(settings.decoder === 'hardware' && systemHls);
+    if (useHlsJs) {
       const h = new Hls({loader: makeNativeLoader(stream.headers as Record<string, string> | undefined) as never, lowLatencyMode: live, maxBufferLength: 40});
       hls.current = h;
       h.loadSource(stream.link);
@@ -199,7 +221,7 @@ export default function Player() {
       setBoostOk(false);
     }
     return () => { hls.current?.destroy(); hls.current = null; };
-  }, [stream]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stream, settings.decoder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- subtitles ----
   const loadSubs = useCallback(async (i: number) => {
@@ -318,6 +340,82 @@ export default function Player() {
     return () => { for (const a of ['play', 'pause', 'seekbackward', 'seekforward', 'nexttrack'] as const) ms.setActionHandler(a, null); };
   }, [settings.mediaKeys, st, next, qi, goTo, seekBy]);
 
+  // ---- cast ----
+  const scan = useCallback(() => {
+    if (!castSupported()) return;
+    setScanning(true);
+    discoverDevices().then(setDevices).catch(() => say('Could not search for devices')).finally(() => setScanning(false));
+  }, [say]);
+  const openCast = () => { setTab('cast'); scan(); };
+  const castTo = async (d: CastDevice) => {
+    const link = stream?.link ?? '';
+    if (!/^https?:/i.test(link)) { say('Only online streams can be cast'); return; }
+    if (stream?.headers && Object.keys(stream.headers).length) { say('This source needs special headers, so a TV cannot play it. Try another server.'); return; }
+    try {
+      await castPlay(d, link, st?.title ?? 'CineHub');
+      video.current?.pause();
+      castRef.current = d; setCasting(d); setTab(null); say(`Casting to ${d.name}`);
+    } catch (e) { say(typeof e === 'string' ? e : 'The device could not play this stream'); }
+  };
+  const stopCast = async () => {
+    const d = castRef.current; castRef.current = null; setCasting(null);
+    if (d) await castStop(d).catch(() => {});
+    setTab(null);
+  };
+  const remoteCast = async () => {
+    const r = (video.current as (HTMLVideoElement & {remote?: {prompt: () => Promise<void>}}) | null)?.remote;
+    try { await r?.prompt(); } catch { say('No cast device was chosen'); }
+  };
+  const copyLink = () => { void navigator.clipboard.writeText(stream?.link ?? '').then(() => say('Stream link copied')); };
+  useEffect(() => () => { const d = castRef.current; if (d) void castStop(d).catch(() => {}); }, []);
+
+  // ---- decoder ----
+  const pickDecoder = (d: 'auto' | 'hardware' | 'software') => {
+    if (d !== settings.decoder) { resumeAt.current = live ? null : video.current?.currentTime ?? null; updateSettings({decoder: d}); }
+    setTab(null);
+  };
+
+  // ---- watch together ----
+  useEffect(() => {
+    if (!inRoom || !party.isHost || !st || st.local) return;
+    const {back: _back, ...shared} = st; // eslint-disable-line @typescript-eslint/no-unused-vars
+    partyApi.sendContent(shared as Record<string, unknown>, st.title);
+  }, [inRoom, party.isHost, st]);
+  useEffect(() => {
+    if (!inRoom || !party.isHost) return;
+    partyApi.registerSnapshot(() => ({playing: !video.current?.paused, position: video.current?.currentTime ?? 0}));
+    return () => partyApi.registerSnapshot(null);
+  }, [inRoom, party.isHost]);
+  useEffect(() => {
+    // Sync starts a moment after the video can play, so loading does not echo into the room.
+    setArmed(false);
+    const el = video.current; if (!el || !stream) return;
+    let timer = 0;
+    const go = () => { timer = window.setTimeout(() => setArmed(true), 1200); };
+    if (el.readyState >= 3) go(); else el.addEventListener('canplay', go, {once: true});
+    return () => { clearTimeout(timer); el.removeEventListener('canplay', go); };
+  }, [stream, locked]);
+  useEffect(() => {
+    const el = video.current; if (!el || !inRoom) return;
+    const sendNow = () => { if (!armed || Date.now() < mutedUntil.current) return; partyApi.sendPlayback('play', !el.paused, el.currentTime); };
+    el.addEventListener('play', sendNow); el.addEventListener('pause', sendNow); el.addEventListener('seeked', sendNow);
+    return () => { el.removeEventListener('play', sendNow); el.removeEventListener('pause', sendNow); el.removeEventListener('seeked', sendNow); };
+  }, [inRoom, armed, locked, stream]);
+  useEffect(() => {
+    const r = party.remote; const el = video.current;
+    if (!inRoom || !armed || !r || !el) return;
+    const target = r.position + (r.playing ? (Date.now() - r.receivedAt) / 1000 + 0.25 : 0);
+    mutedUntil.current = Date.now() + 1600;
+    if (Math.abs(el.currentTime - target) > (r.kind === 'tick' ? 2.5 : 0.8)) el.currentTime = Math.max(0, target);
+    if (r.playing && el.paused) el.play().catch(() => {});
+    else if (!r.playing && !el.paused) el.pause();
+  }, [party.remote, inRoom, armed]);
+  useEffect(() => {
+    if (!inRoom || !party.isHost || !armed) return;
+    const id = window.setInterval(() => { const el = video.current; if (el) partyApi.sendPlayback('tick', !el.paused, el.currentTime); }, 5000);
+    return () => clearInterval(id);
+  }, [inRoom, party.isHost, armed]);
+
   // ---- next episode countdown ----
   useEffect(() => {
     if (countdown == null) return;
@@ -343,6 +441,8 @@ export default function Player() {
     {id: 'subtitle', title: 'Subtitles', label: subLabel === 'None' ? 'None' : langName(subs[subIdx]?.language, 'On'), short: subLabel, visible: true, on: cues.length > 0, click: () => setTab('subtitle')},
     {id: 'speed', title: 'Playback speed', label: `${speed === 1 ? '1.0' : Number(speed.toFixed(2))}x`, visible: !live, on: speed !== 1, click: () => setTab('speed')},
     {id: 'pip', title: 'Picture in picture', label: 'PIP', visible: 'pictureInPictureEnabled' in document, click: () => void pip()},
+    {id: 'cast', title: 'Cast', label: casting ? casting.name : 'Cast', short: 'Cast', visible: true, on: Boolean(casting), click: openCast},
+    {id: 'decoder', title: 'Decoder', label: settings.decoder === 'hardware' ? 'Hardware' : settings.decoder === 'software' ? 'Software' : 'Auto', short: settings.decoder === 'hardware' ? 'HW' : settings.decoder === 'software' ? 'SW' : 'Auto', visible: true, click: () => setTab('decoder')},
     {id: 'server', title: 'Server and quality', label: qualityLabel, visible: true, click: () => setTab('server')},
     {id: 'resize', title: 'Video fit', label: fitLabel, visible: true, click: () => setTab('resize')},
     {id: 'episodes', title: 'Episodes', label: 'Episodes', visible: Boolean(q && q.length > 1), on: panel, click: () => setPanel(p => !p)},
@@ -351,6 +451,7 @@ export default function Player() {
   ];
   const top: Ctl[] = [
     {id: 'sleep', title: 'Sleep timer', label: sleepEnd ? 'End of episode' : sleepMin ? `${sleepMin} min` : 'Sleep', visible: true, on: sleepMin > 0 || sleepEnd, click: () => setTab('sleep')},
+    {id: 'party', title: 'Watch Together', label: 'Party', visible: inRoom, on: inRoom, click: () => setTab('party')},
     {id: 'lock', title: 'Lock player', label: 'Lock', visible: true, click: () => { setLocked(true); setTab(null); wake(); }},
   ];
   const vis = (list: Ctl[]) => list.filter(c => c.visible && !hidden.has(c.id));
@@ -524,6 +625,37 @@ export default function Player() {
         <input className="wide-range" type="range" min={0} max={boostOk && settings.volumeBoost ? 2 : 1} step={0.02} value={vol} onChange={e => applyVolume(Number(e.target.value))} />
         {introMuted && !live && <div className="menu-empty">The first 5 seconds play without sound.</div>}
         {!boostOk && <div className="menu-empty">Volume boost works with streamed sources.</div>}
+      </Sheet>}
+      {tab === 'cast' && <Sheet title="Cast" onClose={() => setTab(null)}>
+        {casting && <>
+          <SectionLabel>Casting</SectionLabel>
+          <SheetRow title={casting.name} detail="Pause" onClick={() => void castPause(casting).catch(() => say('Could not pause'))} />
+          <SheetRow title="Resume on TV" onClick={() => void castResume(casting).catch(() => say('Could not resume'))} />
+          <SheetRow title="Stop casting" onClick={() => void stopCast()} />
+        </>}
+        <SectionLabel>Devices on your network</SectionLabel>
+        {scanning && <div className="menu-empty">Searching for TVs and speakers…</div>}
+        {!scanning && castSupported() && devices.length === 0 && <div className="menu-empty">No devices found. Make sure the TV is on and on the same Wi-Fi, then search again.</div>}
+        {devices.map(d => <SheetRow key={d.control} title={d.name} detail="DLNA / UPnP" selected={casting?.control === d.control} onClick={() => void castTo(d)} />)}
+        {castSupported() && <SheetRow title="Search again" onClick={scan} />}
+        <SectionLabel>Other ways</SectionLabel>
+        {'remote' in HTMLVideoElement.prototype && <SheetRow title="Cast with the browser" detail="Chromecast and other devices the system finds" onClick={() => void remoteCast()} />}
+        <SheetRow title="Copy stream link" detail="Paste it into a cast app or media player" onClick={() => { copyLink(); setTab(null); }} />
+        <div className="menu-empty">TVs play online streams directly, so sources that need special headers or local files cannot be cast.</div>
+      </Sheet>}
+      {tab === 'decoder' && <Sheet title="Decoder" onClose={() => setTab(null)}>
+        <SheetRow title="Auto" detail="Best choice for each stream" selected={settings.decoder === 'auto'} onClick={() => pickDecoder('auto')} />
+        <SheetRow title="Hardware" detail="System player, uses your graphics card when it can" selected={settings.decoder === 'hardware'} onClick={() => pickDecoder('hardware')} />
+        <SheetRow title="Software" detail="hls.js, works with the most streams" selected={settings.decoder === 'software'} onClick={() => pickDecoder('software')} />
+        <div className="menu-empty">Applies to HLS (.m3u8) streams. Other formats always use the system decoder.</div>
+      </Sheet>}
+      {tab === 'party' && <Sheet title="Watch Together" onClose={() => setTab(null)}>
+        <SectionLabel>{`Room ${party.code ?? ''} · ${party.members.length} watching`}</SectionLabel>
+        {party.members.map(m => <SheetRow key={m.key} title={m.name} detail={m.host ? 'Host' : undefined} onClick={() => {}} />)}
+        <SectionLabel>Chat</SectionLabel>
+        <div className="party-log">{party.chat.slice(-30).map(c => <div key={c.id} className={`party-msg${c.mine ? ' mine' : ''}`}><b>{c.mine ? 'You' : c.name}</b> {c.text}</div>)}</div>
+        <div className="party-input"><input className="input" style={{flex: 1}} placeholder="Message" value={chatText} maxLength={300} onChange={e => setChatText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { partyApi.sendChat(chatText); setChatText(''); } }} /><button className="btn glass press" style={{height: 38}} onClick={() => { partyApi.sendChat(chatText); setChatText(''); }}>Send</button></div>
+        <SheetRow title="Leave room" onClick={() => { void partyApi.leaveRoom(); setTab(null); }} />
       </Sheet>}
       {tab === 'more' && <Sheet title="Settings" onClose={() => setTab(null)}>
         <SectionLabel>Playback</SectionLabel>

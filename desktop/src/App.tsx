@@ -1,4 +1,6 @@
-import {HashRouter, Navigate, Outlet, Route, Routes, useLocation} from 'react-router-dom';
+import {useEffect, useRef} from 'react';
+import {HashRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate} from 'react-router-dom';
+import {useParty} from './lib/party';
 import {AuthProvider, useAuth} from './store/auth';
 import {ServersProvider} from './store/servers';
 import {Sidebar} from './components/Parts';
@@ -12,6 +14,23 @@ import Player from './pages/Player';
 import Intro from './components/Intro';
 import LiveTv from './pages/LiveTv';
 import Downloads from './pages/Downloads';
+
+/** Guests: when the host picks something, open it here too. */
+const PartyBridge = () => {
+  const {content, isHost, code} = useParty();
+  const nav = useNavigate();
+  const loc = useLocation();
+  const last = useRef('');
+  useEffect(() => { if (!code) last.current = ''; }, [code]);
+  useEffect(() => {
+    if (!content || isHost) return;
+    const key = JSON.stringify(content.params);
+    if (key === last.current) return;
+    last.current = key;
+    nav('/watch', {replace: loc.pathname === '/watch', state: {...content.params, back: '/settings/party'}});
+  }, [content]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+};
 
 const Shell = () => {
   const {session, ready} = useAuth();
@@ -38,6 +57,7 @@ export default function App() {
     <AuthProvider>
       <Intro />
       <HashRouter>
+        <PartyBridge />
         <Routes>
           <Route element={<Shell />}>
             <Route index element={<Home />} />

@@ -37,7 +37,7 @@ export default function Login() {
       <form className="card" onSubmit={submit}>
         <img className="logo" src="/logo.png" alt="" />
         <h1>{mode === 'in' ? 'Welcome back' : mode === 'up' ? 'Create account' : 'Reset password'}</h1>
-        <div className="sub">{mode === 'forgot' ? 'We will email you a reset link' : 'Sign in to continue to Cinebox'}</div>
+        <div className="sub">{mode === 'forgot' ? 'We will email you a reset link' : 'Sign in to continue to CineHub'}</div>
         <input className="field" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} autoFocus required />
         {mode !== 'forgot' && (
           <input className="field" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />

@@ -21,7 +21,7 @@ export default function Downloads() {
         <h1 className="title-xl">Downloads</h1>
         {items.some(i => i.status !== 'downloading') && <button className="btn glass press" onClick={clearFinished}>Clear finished</button>}
       </div>
-      {items.length === 0 && <Message title="No downloads" text="Open a title and press Download. Files are saved in your Downloads/Cinebox folder." />}
+      {items.length === 0 && <Message title="No downloads" text="Open a title and press Download. Files are saved in your Downloads/CineHub folder." />}
       <div className="eps" style={{padding: '0 40px 50px', maxWidth: 820}}>
         {items.map(d => (
           <div key={d.id} className="dl">

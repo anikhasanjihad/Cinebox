@@ -65,4 +65,4 @@ License. Keep those files with the source.
 
 ## Desktop (Windows / Linux)
 
-`desktop/` is a separate Tauri + React app that talks to the same Supabase project and the same provider modules as the mobile app. Build it from GitHub → Actions → **Build Cinebox Desktop**, or locally with `cd desktop && npm install && npm run tauri build`.
+`desktop/` is a separate Tauri + React app that talks to the same Supabase project and the same provider modules as the mobile app. Build it from GitHub → Actions → **Build CineHub Desktop**, or locally with `cd desktop && npm install && npm run tauri build`.
